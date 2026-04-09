@@ -15,7 +15,13 @@ async function getGoogleAccessToken() {
 
   if (!email || !rawKey) throw new Error("Google credentials not configured");
 
-  const privateKey = rawKey.replace(/\\n/g, "\n");
+  // Normalize the private key - handle all Vercel storage formats
+  let privateKey = rawKey;
+  // Replace escaped newlines with real newlines
+  privateKey = privateKey.replace(/\\n/g, "\n");
+  // Remove any surrounding quotes that might have been included
+  privateKey = privateKey.replace(/^["']|["']$/g, "");
+  privateKey = privateKey.trim();
 
   const now = Math.floor(Date.now() / 1000);
   const payload = {
@@ -27,13 +33,28 @@ async function getGoogleAccessToken() {
   };
 
   const header = { alg: "RS256", typ: "JWT" };
-  const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url");
-  const signingInput = `${encode(header)}.${encode(payload)}`;
+
+  function base64url(str) {
+    return Buffer.from(str).toString("base64")
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  }
+
+  const headerB64 = base64url(JSON.stringify(header));
+  const payloadB64 = base64url(JSON.stringify(payload));
+  const signingInput = `${headerB64}.${payloadB64}`;
 
   const { createSign } = await import("crypto");
-  const sign = createSign("RSA-SHA256");
-  sign.update(signingInput);
-  const signature = sign.sign(privateKey, "base64url");
+
+  let signature;
+  try {
+    const sign = createSign("RSA-SHA256");
+    sign.update(signingInput);
+    signature = sign.sign({ key: privateKey, format: "pem" }, "base64")
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  } catch (keyErr) {
+    throw new Error(`Private key error: ${keyErr.message}. Key starts with: ${privateKey.substring(0, 50)}`);
+  }
+
   const jwt = `${signingInput}.${signature}`;
 
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
