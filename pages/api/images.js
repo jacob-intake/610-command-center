@@ -3,54 +3,49 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { captions, primaryTopic, secondaryTopic } = req.body;
+  const { caption, primaryTopic } = req.body;
 
-  if (!captions || !Array.isArray(captions)) {
-    return res.status(400).json({ error: "Captions array is required" });
+  if (!caption) {
+    return res.status(400).json({ error: "Caption is required" });
   }
 
   const typeStyles = {
-    "Educational tip": "clean infographic style, professional business illustration, minimal design, navy blue and white palette",
-    "Thought leadership": "bold editorial style, modern professional photography aesthetic, dark dramatic tones",
-    "AI and automation": "futuristic tech illustration, clean circuit and flow diagram aesthetic, blue and silver tones",
-    "San Diego local": "bright California coastal photography style, warm sunlight, San Diego skyline or beach aesthetic",
-    "610 services": "professional marketing agency aesthetic, bold typography focused, clean modern brand design",
+    "Educational tip":    "clean professional business illustration, minimal design, navy blue and white palette, modern infographic style",
+    "Thought leadership": "bold editorial photography style, dark dramatic professional tones, modern business aesthetic",
+    "AI and automation":  "futuristic technology illustration, clean circuit and data flow aesthetic, blue and silver tones, professional",
+    "San Diego local":    "bright California coastal photography style, warm golden sunlight, San Diego skyline or waterfront, vibrant",
+    "610 services":       "professional marketing agency aesthetic, bold clean modern brand design, confident business imagery",
   };
 
-  const results = [];
+  const styleGuide = typeStyles[caption.type] || "professional business photography, clean modern aesthetic";
 
-  for (const caption of captions) {
-    const styleGuide = typeStyles[caption.type] || "professional business photography, clean modern aesthetic";
-    const prompt = `Social media post image for a digital marketing agency. Topic: ${primaryTopic}. Content type: ${caption.type}. Style: ${styleGuide}. The image should work as a square social media graphic. No text overlays. Professional, modern, and on-brand for a marketing agency serving small businesses in San Diego. High quality.`;
+  const prompt = `Social media post image for a boutique digital marketing agency called 610 Marketing. Topic: ${primaryTopic}. Content type: ${caption.type}. Visual style: ${styleGuide}. Square format social media graphic. No text overlays. No words in the image. Professional, modern, clean. High quality photography or illustration.`;
 
-    try {
-      const response = await fetch("https://api.openai.com/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: "dall-e-3",
-          prompt,
-          n: 1,
-          size: "1024x1024",
-          quality: "standard",
-          response_format: "url",
-        }),
-      });
+  try {
+    const response = await fetch("https://api.openai.com/v1/images/generations", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "standard",
+        response_format: "url",
+      }),
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (data.data && data.data[0]) {
-        results.push({ number: caption.number, imageUrl: data.data[0].url, success: true });
-      } else {
-        results.push({ number: caption.number, imageUrl: null, success: false, error: data.error?.message });
-      }
-    } catch (err) {
-      results.push({ number: caption.number, imageUrl: null, success: false, error: err.message });
+    if (data.data && data.data[0]) {
+      return res.status(200).json({ success: true, imageUrl: data.data[0].url, number: caption.number });
+    } else {
+      return res.status(200).json({ success: false, error: data.error?.message || "No image returned", number: caption.number });
     }
+  } catch (err) {
+    return res.status(200).json({ success: false, error: err.message, number: caption.number });
   }
-
-  return res.status(200).json({ success: true, images: results });
 }
