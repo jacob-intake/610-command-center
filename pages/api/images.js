@@ -1,25 +1,27 @@
+import { getClient } from "../../lib/clients";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { caption, primaryTopic } = req.body;
+  const { caption, primaryTopic, clientId } = req.body;
 
-  if (!caption) {
-    return res.status(400).json({ error: "Caption is required" });
-  }
+  if (!caption) return res.status(400).json({ error: "Caption is required" });
 
-  const typeStyles = {
-    "Educational tip":    "clean professional business illustration, minimal design, navy blue and white palette, modern infographic style",
-    "Thought leadership": "bold editorial photography style, dark dramatic professional tones, modern business aesthetic",
-    "AI and automation":  "futuristic technology illustration, clean circuit and data flow aesthetic, blue and silver tones, professional",
-    "San Diego local":    "bright California coastal photography style, warm golden sunlight, San Diego skyline or waterfront, vibrant",
-    "610 services":       "professional marketing agency aesthetic, bold clean modern brand design, confident business imagery",
+  const client = getClient(clientId || "610-marketing");
+  if (!client) return res.status(400).json({ error: "Invalid client" });
+
+  const typeSubjects = {
+    "Educational tip": `a business professional studying analytics on a laptop in a modern office, clean workspace`,
+    "Thought leadership": `a confident business person presenting to a small group in a sleek modern conference room`,
+    "AI and automation": `abstract visualization of connected digital workflows, glowing data streams on dark background, no text`,
+    "San Diego local": `San Diego cityscape or waterfront at golden hour, professional and vibrant`,
+    "610 services": `a marketing team collaborating around a bright monitor showing campaign results`,
   };
 
-  const styleGuide = typeStyles[caption.type] || "professional business photography, clean modern aesthetic";
-
-  const prompt = `Social media post image for a boutique digital marketing agency called 610 Marketing. Topic: ${primaryTopic}. Content type: ${caption.type}. Visual style: ${styleGuide}. Square format social media graphic. No text overlays. No words in the image. Professional, modern, clean. High quality photography or illustration.`;
+  const subject = typeSubjects[caption.type] || "professional business setting, modern office environment";
+  const prompt = `${client.imageStyle} Subject: ${subject}. The image relates to the topic: ${primaryTopic}. Square format. No text. No words. No logos. No watermarks. Professional quality photography only.`;
 
   try {
     const response = await fetch("https://api.openai.com/v1/images/generations", {

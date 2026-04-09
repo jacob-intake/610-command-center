@@ -1,18 +1,4 @@
-const BRAND_VOICE = `You are the content generation engine for 610 Marketing and PR, a boutique digital marketing and AI implementation agency based in San Diego, California.
-
-610 works with small to mid-size businesses that need real marketing expertise without the overhead of a large agency. Core services include web design, SEO, AEO, social media management, PR, and AI agent design and business workflow automation.
-
-VOICE AND TONE:
-- Confident but not arrogant. Plain spoken, active voice, short sentences.
-- No corporate filler. No buzzwords. No markdown. No asterisks.
-- Approachable and direct. Like a smart industry friend giving real advice.
-- We respect the reader's intelligence and their time.
-
-AUDIENCE: Small business owners who are busy and skeptical of agencies. Local service businesses, law firms, medical practices, contractors, restaurants, professional services.
-
-LANGUAGE WE NEVER USE: Game-changer, synergy, holistic, seamless, leverage as a verb, cutting-edge without substance, exclamation points more than once per piece.
-
-Return clean plain text only. No asterisks, no markdown, no pound signs, no bold formatting.`;
+import { getClient } from "../../lib/clients";
 
 const CAPTION_TYPES = [
   ["Educational tip", "Educational tip", "Educational tip", "Educational tip", "Educational tip"],
@@ -27,15 +13,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { primaryTopic, secondaryTopic, contentNotes, month, batch } = req.body;
+  const { primaryTopic, secondaryTopic, contentNotes, month, batch, clientId } = req.body;
 
-  if (!primaryTopic) {
-    return res.status(400).json({ error: "Primary topic is required" });
-  }
+  if (!primaryTopic) return res.status(400).json({ error: "Primary topic is required" });
+  if (batch === undefined || batch === null) return res.status(400).json({ error: "Batch number is required" });
 
-  if (batch === undefined || batch === null) {
-    return res.status(400).json({ error: "Batch number is required" });
-  }
+  const client = getClient(clientId || "610-marketing");
+  if (!client) return res.status(400).json({ error: "Invalid client" });
 
   const context = `Month: ${month}
 Primary Topic: ${primaryTopic}
@@ -48,7 +32,7 @@ Special Instructions: ${contentNotes || "None"}`;
     const batchTypes = CAPTION_TYPES[batch];
     const startNum = batch * 5 + 1;
 
-    prompt = `${BRAND_VOICE}
+    prompt = `${client.brandVoice}
 
 ${context}
 
@@ -70,13 +54,13 @@ Rules for each caption:
 - 2 to 5 sentences
 - End with a question or conversation prompt
 - Plain text only, no markdown, no asterisks
-- Write in 610 voice: confident, direct, specific, no buzzwords
+- Write in the client brand voice
 - Make it relevant to: ${primaryTopic}
 
 Return only the JSON array. Nothing else.`;
 
   } else if (batch === 5) {
-    prompt = `${BRAND_VOICE}
+    prompt = `${client.brandVoice}
 
 ${context}
 
@@ -137,7 +121,7 @@ Return only the JSON array. Nothing else.`;
       parsed = JSON.parse(raw);
     } catch (parseErr) {
       console.error("JSON parse error:", parseErr.message, "Raw:", raw.substring(0, 300));
-      return res.status(500).json({ error: "Failed to parse response. Please try again.", raw: raw.substring(0, 300) });
+      return res.status(500).json({ error: "Failed to parse response. Please try again." });
     }
 
     const clean = (text) => (text || "").replace(/\*\*/g, "").replace(/\*/g, "").replace(/^#{1,6}\s/gm, "").trim();
