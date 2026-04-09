@@ -44,9 +44,18 @@ LANGUAGE WE NEVER USE:
 
 FORMAT RULES:
 - Social posts: 2 to 5 sentences. End with a question or conversation prompt.
-- Blogs: substantive, practical, specific. Headers, short paragraphs, clear takeaway at the end.
 - Every piece should feel like only 610 could have written it. Generic is the enemy.
+- Return clean plain text only. No asterisks, no markdown, no pound signs, no bold formatting of any kind.
 `;
+
+function cleanText(text) {
+  return text
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/^#{1,6}\s/gm, "")
+    .replace(/^-{3,}$/gm, "")
+    .trim();
+}
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -67,37 +76,46 @@ Primary Topic: ${primaryTopic}
 Secondary Topic: ${secondaryTopic || "None"}
 Special Instructions: ${contentNotes || "None"}
 
-Generate the following content. Use the 610 brand voice throughout. Everything should feel specific, credible, and worth reading.
+Generate the following content in strict JSON format. Return ONLY valid JSON with no other text before or after it.
 
----
+{
+  "captions": [
+    {
+      "number": 1,
+      "type": "Educational tip",
+      "text": "caption text here"
+    }
+  ],
+  "blogs": [
+    {
+      "number": 1,
+      "title": "Working title here",
+      "summary": "One paragraph summary here",
+      "sections": [
+        {
+          "header": "Section header",
+          "description": "Two sentence description of what this section covers"
+        }
+      ]
+    }
+  ]
+}
 
-SECTION 1: SOCIAL MEDIA CAPTIONS
+CAPTIONS REQUIREMENTS:
+Generate exactly 25 captions with this mix:
+- Educational tips: 8 posts (type: "Educational tip")
+- Thought leadership: 6 posts (type: "Thought leadership")
+- AI and workflow automation: 5 posts (type: "AI and automation")
+- Local San Diego angle: 3 posts (type: "San Diego local")
+- Promotional: 3 posts (type: "610 services")
 
-Write 25 social media captions suitable for Facebook and LinkedIn. Mix the following content types across the 25 posts:
-- Educational tips (8 posts): practical advice the reader can use immediately
-- Thought leadership and opinion (6 posts): 610's point of view on industry trends
-- AI and workflow automation insights (5 posts): practical AI for small business
-- Local San Diego business angle (3 posts): local community and market relevance
-- Promotional posts about 610 services (3 posts): specific, credible, never salesy
+Each caption: 2 to 5 sentences. End with a question or conversation prompt. Plain text only, no markdown.
 
-Each caption must be 2 to 5 sentences. End each one with a question or conversation prompt. Number each caption 1 through 25. Label each one with its content type in brackets before the caption.
+BLOG REQUIREMENTS:
+Generate exactly 4 blog outlines. Each blog must have 6 to 8 sections.
+Plain text only in all fields, no markdown, no asterisks.
 
----
-
-SECTION 2: BLOG OUTLINES
-
-Write 4 detailed blog outlines. Each blog should be built around the primary or secondary topic and written for a small business owner audience.
-
-For each blog provide:
-- Working title
-- One paragraph summary of the post angle and why it matters to the reader
-- 6 to 8 section headers, each with a two sentence description of what that section covers
-
-Label these Blog 1 through Blog 4.
-
----
-
-Format everything cleanly. Section 1 captions first, Section 2 blog outlines second. Use the numbering and labels described above.`;
+Return only the JSON object. Nothing else.`;
 
   try {
     const message = await client.messages.create({
@@ -106,28 +124,35 @@ Format everything cleanly. Section 1 captions first, Section 2 blog outlines sec
       messages: [{ role: "user", content: prompt }],
     });
 
-    const content = message.content[0].text;
+    let raw = message.content[0].text.trim();
+    raw = raw.replace(/^```json\n?/, "").replace(/^```\n?/, "").replace(/\n?```$/, "").trim();
 
-    // Split captions and blogs
-    const section1Match = content.indexOf("SECTION 1:");
-    const section2Match = content.indexOf("SECTION 2:");
-
-    let captions = "";
-    let blogs = "";
-
-    if (section1Match !== -1 && section2Match !== -1) {
-      captions = content.substring(section1Match, section2Match).trim();
-      blogs = content.substring(section2Match).trim();
-    } else {
-      captions = content;
-      blogs = "";
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return res.status(500).json({ error: "Failed to parse content. Please try again.", raw });
     }
+
+    const captions = (parsed.captions || []).map(c => ({
+      ...c,
+      text: cleanText(c.text || ""),
+    }));
+
+    const blogs = (parsed.blogs || []).map(b => ({
+      ...b,
+      title: cleanText(b.title || ""),
+      summary: cleanText(b.summary || ""),
+      sections: (b.sections || []).map(s => ({
+        header: cleanText(s.header || ""),
+        description: cleanText(s.description || ""),
+      })),
+    }));
 
     return res.status(200).json({
       success: true,
       captions,
       blogs,
-      fullContent: content,
       month,
       primaryTopic,
       secondaryTopic,
@@ -135,9 +160,6 @@ Format everything cleanly. Section 1 captions first, Section 2 blog outlines sec
     });
   } catch (error) {
     console.error("Generation error:", error);
-    return res.status(500).json({
-      error: "Content generation failed",
-      details: error.message,
-    });
+    return res.status(500).json({ error: "Content generation failed", details: error.message });
   }
 }
