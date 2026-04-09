@@ -154,16 +154,18 @@ async function writeToGoogleSheet(topics) {
 }
 
 export default async function handler(req, res) {
-  // Allow GET for cron triggers, POST for manual triggers
   if (req.method !== "GET" && req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  // Simple security check for cron calls
-  const cronSecret = req.headers["x-cron-secret"] || req.query.secret;
-  const expectedSecret = process.env.CRON_SECRET;
-  if (expectedSecret && cronSecret !== expectedSecret) {
-    return res.status(401).json({ error: "Unauthorized" });
+  // POST from the frontend UI is always allowed (user is already authenticated via ACCESS_PASSWORD)
+  // GET requests from cron jobs require the CRON_SECRET
+  if (req.method === "GET") {
+    const cronSecret = req.headers["x-cron-secret"] || req.query.secret;
+    const expectedSecret = process.env.CRON_SECRET;
+    if (expectedSecret && cronSecret !== expectedSecret) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
   }
 
   try {
