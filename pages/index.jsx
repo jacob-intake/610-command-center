@@ -1,9 +1,6 @@
 import { useState } from "react";
 
-const MONTHS = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December"
-];
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const currentMonth = MONTHS[new Date().getMonth()] + " " + new Date().getFullYear();
 
 const TYPE_COLORS = {
@@ -13,6 +10,15 @@ const TYPE_COLORS = {
   "San Diego local":    { bg: "#1a1200", border: "#5a4200", label: "#d9a84a" },
   "610 services":       { bg: "#1a0a0a", border: "#5a1a1a", label: "#d94a4a" },
 };
+
+const BATCH_LABELS = [
+  "Writing educational tips...",
+  "Writing thought leadership...",
+  "Writing AI and automation posts...",
+  "Writing local and promo posts...",
+  "Writing final captions...",
+  "Writing blog outlines...",
+];
 
 function Logo610({ size = "md" }) {
   const s = { sm:{n:"28px",t:"9px"}, md:{n:"48px",t:"12px"}, lg:{n:"72px",t:"16px"} }[size];
@@ -38,7 +44,7 @@ function LogoHeader() {
 }
 
 function downloadText(filename, content) {
-  const blob = new Blob([content], { type: "text/plain" });
+  const blob = new Blob([content], { type:"text/plain" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename; a.click();
@@ -47,43 +53,22 @@ function downloadText(filename, content) {
 
 async function downloadImage(imageUrl, filename) {
   try {
-    const response = await fetch(imageUrl);
-    const blob = await response.blob();
+    const res = await fetch(imageUrl);
+    const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = filename; a.click();
     URL.revokeObjectURL(url);
-  } catch {
-    window.open(imageUrl, "_blank");
-  }
+  } catch { window.open(imageUrl, "_blank"); }
 }
 
 function btnStyle(bg, border, color) {
-  return {
-    padding:"6px 12px", background:bg, border:`1px solid ${border}`, borderRadius:"3px",
-    color, fontSize:"11px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif",
-    letterSpacing:"0.5px", textTransform:"uppercase", whiteSpace:"nowrap",
-  };
+  return { padding:"6px 12px", background:bg, border:`1px solid ${border}`, borderRadius:"3px", color, fontSize:"11px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase", whiteSpace:"nowrap" };
 }
 
 function CaptionCard({ caption, imageUrl, imageLoading, onSchedule, month, primaryTopic }) {
   const [copied, setCopied] = useState(false);
   const colors = TYPE_COLORS[caption.type] || TYPE_COLORS["Educational tip"];
-
-  function handleCopy() {
-    navigator.clipboard.writeText(caption.text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  function handleDownloadText() {
-    const content = `610 Marketing & PR\n${month} - ${primaryTopic}\nContent Type: ${caption.type}\n\n${caption.text}`;
-    downloadText(`610-caption-${caption.number}.txt`, content);
-  }
-
-  async function handleDownloadImage() {
-    if (imageUrl) await downloadImage(imageUrl, `610-image-${caption.number}.png`);
-  }
 
   return (
     <div style={{ background:colors.bg, border:`1px solid ${colors.border}`, borderRadius:"6px", overflow:"hidden", display:"flex", flexDirection:"column" }}>
@@ -99,9 +84,7 @@ function CaptionCard({ caption, imageUrl, imageLoading, onSchedule, month, prima
             <span style={{ fontSize:"11px", color:"#333", fontFamily:"monospace" }}>Generating...</span>
           </div>
         )}
-        {imageUrl && (
-          <img src={imageUrl} alt={caption.type} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
-        )}
+        {imageUrl && <img src={imageUrl} alt={caption.type} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />}
         {!imageUrl && !imageLoading && (
           <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", opacity:0.1 }}>
             <Logo610 size="sm" />
@@ -114,9 +97,9 @@ function CaptionCard({ caption, imageUrl, imageLoading, onSchedule, month, prima
       </div>
 
       <div style={{ padding:"10px 14px", borderTop:`1px solid ${colors.border}`, display:"flex", gap:"6px", flexWrap:"wrap" }}>
-        <button onClick={handleCopy} style={btnStyle("#161616","#2a2a2a","#888")}>{copied ? "Copied" : "Copy"}</button>
-        <button onClick={handleDownloadText} style={btnStyle("#161616","#2a2a2a","#888")}>Download Text</button>
-        {imageUrl && <button onClick={handleDownloadImage} style={btnStyle("#161616","#2a2a2a","#888")}>Download Image</button>}
+        <button onClick={() => { navigator.clipboard.writeText(caption.text); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={btnStyle("#161616","#2a2a2a","#888")}>{copied?"Copied":"Copy"}</button>
+        <button onClick={() => downloadText(`610-caption-${caption.number}.txt`, `610 Marketing & PR\n${month} - ${primaryTopic}\nType: ${caption.type}\n\n${caption.text}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download</button>
+        {imageUrl && <button onClick={() => downloadImage(imageUrl, `610-image-${caption.number}.png`)} style={btnStyle("#161616","#2a2a2a","#888")}>Save Image</button>}
         <button onClick={() => onSchedule(caption)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
       </div>
     </div>
@@ -126,39 +109,36 @@ function CaptionCard({ caption, imageUrl, imageLoading, onSchedule, month, prima
 function BlogCard({ blog, month, primaryTopic }) {
   const [copied, setCopied] = useState(false);
   const [expanded, setExpanded] = useState(false);
-
-  const fullText = `${blog.title}\n\n${blog.summary}\n\n${(blog.sections||[]).map((s,i) => `${i+1}. ${s.header}\n${s.description}`).join("\n\n")}`;
+  const fullText = `${blog.title}\n\n${blog.summary}\n\n${(blog.sections||[]).map((s,i)=>`${i+1}. ${s.header}\n${s.description}`).join("\n\n")}`;
 
   return (
     <div style={{ background:"#0d0d0d", border:"1px solid #1e1e1e", borderRadius:"6px", overflow:"hidden" }}>
-      <div style={{ padding:"16px 20px", borderBottom:"1px solid #1a1a1a", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }} onClick={() => setExpanded(!expanded)}>
+      <div style={{ padding:"16px 20px", borderBottom:"1px solid #1a1a1a", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }} onClick={()=>setExpanded(!expanded)}>
         <div style={{ flex:1 }}>
           <span style={{ fontSize:"10px", color:"#444", fontFamily:"monospace", border:"1px solid #222", padding:"2px 7px", borderRadius:"2px", display:"inline-block", marginBottom:"8px" }}>Blog {blog.number}</span>
           <h3 style={{ fontSize:"15px", fontWeight:"700", color:"#f0f0f0", fontFamily:"'Helvetica Neue',Arial,sans-serif", margin:0, lineHeight:"1.4" }}>{blog.title}</h3>
         </div>
-        <span style={{ fontSize:"20px", color:"#444", marginLeft:"16px", lineHeight:1 }}>{expanded ? "−" : "+"}</span>
+        <span style={{ fontSize:"20px", color:"#444", marginLeft:"16px", lineHeight:1 }}>{expanded?"−":"+"}</span>
       </div>
-
       {expanded && (
         <div style={{ padding:"20px" }}>
           <p style={{ fontSize:"13px", color:"#888", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", margin:"0 0 20px 0", paddingBottom:"16px", borderBottom:"1px solid #161616" }}>{blog.summary}</p>
           <div style={{ display:"flex", flexDirection:"column", gap:"14px" }}>
-            {(blog.sections||[]).map((section, i) => (
+            {(blog.sections||[]).map((s,i) => (
               <div key={i} style={{ display:"flex", gap:"14px" }}>
                 <span style={{ fontSize:"12px", color:"#333", fontFamily:"monospace", minWidth:"22px", paddingTop:"2px" }}>{i+1}.</span>
                 <div>
-                  <p style={{ fontSize:"13px", fontWeight:"600", color:"#ccc", fontFamily:"'Helvetica Neue',Arial,sans-serif", margin:"0 0 4px 0" }}>{section.header}</p>
-                  <p style={{ fontSize:"12px", color:"#555", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.6", margin:0 }}>{section.description}</p>
+                  <p style={{ fontSize:"13px", fontWeight:"600", color:"#ccc", fontFamily:"'Helvetica Neue',Arial,sans-serif", margin:"0 0 4px 0" }}>{s.header}</p>
+                  <p style={{ fontSize:"12px", color:"#555", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.6", margin:0 }}>{s.description}</p>
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
-
       <div style={{ padding:"10px 16px", borderTop:"1px solid #161616", display:"flex", gap:"6px" }}>
-        <button onClick={() => { navigator.clipboard.writeText(fullText); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={btnStyle("#161616","#2a2a2a","#888")}>{copied ? "Copied" : "Copy Outline"}</button>
-        <button onClick={() => downloadText(`610-blog-outline-${blog.number}.txt`, `610 Marketing & PR\n${month}\n\n${fullText}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download</button>
+        <button onClick={()=>{navigator.clipboard.writeText(fullText);setCopied(true);setTimeout(()=>setCopied(false),2000);}} style={btnStyle("#161616","#2a2a2a","#888")}>{copied?"Copied":"Copy Outline"}</button>
+        <button onClick={()=>downloadText(`610-blog-${blog.number}.txt`,`610 Marketing & PR\n${month}\n\n${fullText}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download</button>
         <button style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Write Full Blog</button>
       </div>
     </div>
@@ -182,7 +162,7 @@ function ScheduleModal({ caption, onClose }) {
           <p style={{ fontSize:"12px", color:"#555", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.6", margin:0 }}>Direct one-click Buffer scheduling is coming in the next update. For now, copy this caption and paste it into Buffer to schedule your post.</p>
         </div>
         <div style={{ display:"flex", gap:"8px" }}>
-          <button onClick={() => { navigator.clipboard.writeText(caption.text); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={{ ...btnStyle("#fff","#fff","#000"), flex:1, padding:"11px", fontWeight:"700", fontSize:"12px" }}>{copied ? "Copied!" : "Copy Caption"}</button>
+          <button onClick={()=>{navigator.clipboard.writeText(caption.text);setCopied(true);setTimeout(()=>setCopied(false),2000);}} style={{ ...btnStyle("#fff","#fff","#000"), flex:1, padding:"11px", fontWeight:"700", fontSize:"12px" }}>{copied?"Copied!":"Copy Caption"}</button>
           <button onClick={onClose} style={{ ...btnStyle("#161616","#2a2a2a","#666"), padding:"11px 20px" }}>Close</button>
         </div>
       </div>
@@ -201,11 +181,16 @@ export default function CommandCenter() {
   const [secondaryTopic, setSecondaryTopic] = useState("");
   const [contentNotes, setContentNotes] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [currentBatch, setCurrentBatch] = useState(-1);
+  const [batchesComplete, setBatchesComplete] = useState(0);
   const [loadingImages, setLoadingImages] = useState(false);
   const [imagesProgress, setImagesProgress] = useState(0);
-  const [result, setResult] = useState(null);
+
+  const [captions, setCaptions] = useState([]);
+  const [blogs, setBlogs] = useState([]);
   const [images, setImages] = useState({});
+  const [resultMeta, setResultMeta] = useState(null);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState("captions");
   const [scheduleCaption, setScheduleCaption] = useState(null);
@@ -222,66 +207,84 @@ export default function CommandCenter() {
     setChecking(false);
   }
 
-  async function generateImagesSequentially(captions, primaryTopic) {
+  async function generateImagesSequentially(captionList, topic) {
     setLoadingImages(true);
     setImagesProgress(0);
-    const imageMap = {};
-
-    for (let i = 0; i < captions.length; i++) {
-      const caption = captions[i];
+    for (let i = 0; i < captionList.length; i++) {
       try {
         const res = await fetch("/api/images", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ caption, primaryTopic }),
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ caption: captionList[i], primaryTopic: topic }),
         });
         const data = await res.json();
         if (data.success && data.imageUrl) {
-          imageMap[caption.number] = data.imageUrl;
-          setImages(prev => ({ ...prev, [caption.number]: data.imageUrl }));
+          setImages(prev => ({ ...prev, [captionList[i].number]: data.imageUrl }));
         }
-      } catch {
-        // silently skip failed images
-      }
+      } catch { /* skip failed images silently */ }
       setImagesProgress(i + 1);
     }
-
     setLoadingImages(false);
   }
 
   async function handleGenerate() {
     if (!primaryTopic.trim()) return;
-    setLoading(true);
+    setGenerating(true);
     setError(null);
-    setResult(null);
+    setCaptions([]);
+    setBlogs([]);
     setImages({});
     setImagesProgress(0);
+    setBatchesComplete(0);
+    setResultMeta(null);
+    setActiveTab("captions");
 
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ month, primaryTopic, secondaryTopic, contentNotes }),
-      });
-      const data = await res.json();
+    const params = { primaryTopic, secondaryTopic, contentNotes, month };
+    let allCaptions = [];
+    let allBlogs = [];
 
-      if (!data.success) {
-        setError(data.error || "Content generation failed. Please try again.");
-        setLoading(false);
+    for (let batch = 0; batch <= 5; batch++) {
+      setCurrentBatch(batch);
+      try {
+        const res = await fetch("/api/generate", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ ...params, batch }),
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+          setError(`Batch ${batch + 1} failed: ${data.error || "Unknown error"}`);
+          setGenerating(false);
+          return;
+        }
+
+        if (data.type === "captions") {
+          allCaptions = [...allCaptions, ...data.captions];
+          setCaptions([...allCaptions]);
+        } else if (data.type === "blogs") {
+          allBlogs = [...allBlogs, ...data.blogs];
+          setBlogs([...allBlogs]);
+        }
+
+        setBatchesComplete(batch + 1);
+
+      } catch (err) {
+        setError(`Batch ${batch + 1} failed: ${err.message}`);
+        setGenerating(false);
         return;
       }
-
-      setResult(data);
-      setActiveTab("captions");
-      setLoading(false);
-
-      generateImagesSequentially(data.captions, primaryTopic);
-
-    } catch (err) {
-      setError("Request failed. Check your connection and try again.");
-      setLoading(false);
     }
+
+    setResultMeta({ month, primaryTopic, secondaryTopic, generatedAt: new Date().toISOString() });
+    setGenerating(false);
+    setCurrentBatch(-1);
+
+    generateImagesSequentially(allCaptions, primaryTopic);
   }
+
+  const isGenerating = generating;
+  const hasContent = captions.length > 0 || blogs.length > 0;
 
   if (!authenticated) {
     return (
@@ -305,9 +308,6 @@ export default function CommandCenter() {
     );
   }
 
-  const isGenerating = loading;
-  const totalCaptions = result?.captions?.length || 25;
-
   return (
     <>
       <style>{`
@@ -322,7 +322,7 @@ export default function CommandCenter() {
         .tab-btn:hover{color:#aaa!important}
       `}</style>
 
-      {scheduleCaption && <ScheduleModal caption={scheduleCaption} onClose={() => setScheduleCaption(null)} />}
+      {scheduleCaption && <ScheduleModal caption={scheduleCaption} onClose={()=>setScheduleCaption(null)} />}
 
       <div style={{ minHeight:"100vh", background:"#0a0a0a", color:"#f0f0f0", fontFamily:"'Helvetica Neue',Arial,sans-serif", display:"flex", flexDirection:"column" }}>
         <header style={{ borderBottom:"1px solid #161616", padding:"0 40px", background:"#000" }}>
@@ -369,21 +369,41 @@ export default function CommandCenter() {
                 {isGenerating ? (
                   <span style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"10px" }}>
                     <span style={{ width:"13px", height:"13px", border:"2px solid #33333388", borderTop:"2px solid #333", borderRadius:"50%", animation:"spin 0.8s linear infinite", display:"inline-block" }} />
-                    Writing content...
+                    {currentBatch >= 0 ? BATCH_LABELS[currentBatch] : "Starting..."}
                   </span>
                 ) : "Generate This Month's Content"}
               </button>
 
-              {isGenerating && <p style={{ fontSize:"12px", color:"#444", textAlign:"center", marginTop:"-6px", animation:"pulse 1.5s ease infinite" }}>Writing 25 captions and 4 blog outlines...</p>}
+              {isGenerating && (
+                <div style={{ background:"#080808", border:"1px solid #141414", borderRadius:"3px", padding:"14px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+                    <span style={{ fontSize:"11px", color:"#555", fontFamily:"monospace" }}>Content batches</span>
+                    <span style={{ fontSize:"11px", color:"#333", fontFamily:"monospace" }}>{batchesComplete}/6</span>
+                  </div>
+                  <div style={{ background:"#161616", borderRadius:"2px", height:"3px", overflow:"hidden", marginBottom:"12px" }}>
+                    <div style={{ background:"#fff", height:"100%", width:`${(batchesComplete/6)*100}%`, transition:"width 0.3s ease", borderRadius:"2px" }} />
+                  </div>
+                  {[0,1,2,3,4,5].map(i => (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"4px" }}>
+                      <span style={{ fontSize:"10px", color: i < batchesComplete ? "#4ad9a0" : i === currentBatch ? "#fff" : "#222", fontFamily:"monospace" }}>
+                        {i < batchesComplete ? "✓" : i === currentBatch ? "→" : "○"}
+                      </span>
+                      <span style={{ fontSize:"11px", color: i < batchesComplete ? "#4ad9a0" : i === currentBatch ? "#ccc" : "#2a2a2a", fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>
+                        {BATCH_LABELS[i]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {loadingImages && (
                 <div style={{ background:"#080808", border:"1px solid #141414", borderRadius:"3px", padding:"14px" }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"8px" }}>
                     <span style={{ fontSize:"11px", color:"#4a90d9", fontFamily:"monospace" }}>Generating images...</span>
-                    <span style={{ fontSize:"11px", color:"#333", fontFamily:"monospace" }}>{imagesProgress}/{totalCaptions}</span>
+                    <span style={{ fontSize:"11px", color:"#333", fontFamily:"monospace" }}>{imagesProgress}/25</span>
                   </div>
                   <div style={{ background:"#161616", borderRadius:"2px", height:"3px", overflow:"hidden" }}>
-                    <div style={{ background:"#4a90d9", height:"100%", width:`${(imagesProgress/totalCaptions)*100}%`, transition:"width 0.3s ease", borderRadius:"2px" }} />
+                    <div style={{ background:"#4a90d9", height:"100%", width:`${(imagesProgress/25)*100}%`, transition:"width 0.3s ease", borderRadius:"2px" }} />
                   </div>
                 </div>
               )}
@@ -392,7 +412,7 @@ export default function CommandCenter() {
 
               <div style={{ background:"#080808", border:"1px solid #141414", borderRadius:"3px", padding:"16px" }}>
                 <p style={{ fontSize:"10px", color:"#333", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:"14px", fontWeight:"600" }}>Output includes</p>
-                {[["25","Social captions with AI images"],["4","Blog outlines ready to write"],["5","Content types mixed across posts"]].map(([n,l]) => (
+                {[["25","Social captions with AI images"],["4","Blog outlines ready to write"],["6","API calls for reliable generation"]].map(([n,l]) => (
                   <div key={n} style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"10px" }}>
                     <span style={{ fontSize:"20px", fontWeight:"700", color:"#fff", minWidth:"28px", lineHeight:1 }}>{n}</span>
                     <span style={{ fontSize:"12px", color:"#3a3a3a", lineHeight:"1.4" }}>{l}</span>
@@ -407,34 +427,26 @@ export default function CommandCenter() {
                   <span style={{ fontSize:"10px", color:"#333", fontFamily:"monospace", border:"1px solid #222", padding:"3px 7px", borderRadius:"2px" }}>02</span>
                   <h2 style={{ fontSize:"15px", fontWeight:"600", color:"#e0e0e0" }}>Generated Content</h2>
                 </div>
-                {result && (
+                {resultMeta && (
                   <div style={{ display:"flex", gap:"8px" }}>
-                    <span style={{ fontSize:"11px", color:"#555", border:"1px solid #1e1e1e", padding:"3px 9px", borderRadius:"2px" }}>{result.month}</span>
-                    <span style={{ fontSize:"11px", color:"#555", border:"1px solid #1e1e1e", padding:"3px 9px", borderRadius:"2px" }}>{result.primaryTopic}</span>
+                    <span style={{ fontSize:"11px", color:"#555", border:"1px solid #1e1e1e", padding:"3px 9px", borderRadius:"2px" }}>{resultMeta.month}</span>
+                    <span style={{ fontSize:"11px", color:"#555", border:"1px solid #1e1e1e", padding:"3px 9px", borderRadius:"2px" }}>{resultMeta.primaryTopic}</span>
                   </div>
                 )}
               </div>
 
-              {!result && !isGenerating && (
+              {!hasContent && !isGenerating && (
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 40px", gap:"20px", textAlign:"center" }}>
                   <div style={{ background:"#000", padding:"20px 28px", borderRadius:"4px", opacity:0.2 }}><Logo610 size="md" /></div>
                   <p style={{ fontSize:"15px", color:"#333", fontWeight:"600" }}>Ready to generate</p>
-                  <p style={{ fontSize:"12px", color:"#2a2a2a", lineHeight:"1.7", maxWidth:"300px" }}>Fill in the brief and click generate. Your captions with images and blog outlines will appear here.</p>
+                  <p style={{ fontSize:"12px", color:"#2a2a2a", lineHeight:"1.7", maxWidth:"300px" }}>Fill in the brief and click generate. Content populates as each batch completes.</p>
                 </div>
               )}
 
-              {isGenerating && (
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 40px", gap:"20px", textAlign:"center" }}>
-                  <div style={{ background:"#000", padding:"20px 28px", borderRadius:"4px", animation:"pulse 1.5s ease infinite" }}><Logo610 size="md" /></div>
-                  <p style={{ fontSize:"15px", color:"#555", fontWeight:"600" }}>Writing content...</p>
-                  <p style={{ fontSize:"12px", color:"#2a2a2a" }}>This takes about 30 seconds.</p>
-                </div>
-              )}
-
-              {result && (
+              {hasContent && (
                 <>
                   <div style={{ display:"flex", borderBottom:"1px solid #1a1a1a" }}>
-                    {[["captions",`Social Captions (${result.captions?.length||0})`],["blogs",`Blog Outlines (${result.blogs?.length||0})`]].map(([id,label]) => (
+                    {[["captions",`Social Captions (${captions.length})`],["blogs",`Blog Outlines (${blogs.length})`]].map(([id,label]) => (
                       <button key={id} className="tab-btn" onClick={()=>setActiveTab(id)} style={{ padding:"10px 22px", background:"transparent", border:"none", borderBottom:`2px solid ${activeTab===id?"#fff":"transparent"}`, color:activeTab===id?"#f0f0f0":"#444", fontSize:"13px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", fontWeight:"500", marginBottom:"-1px", transition:"color 0.15s" }}>
                         {label}
                       </button>
@@ -443,24 +455,16 @@ export default function CommandCenter() {
 
                   {activeTab === "captions" && (
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:"16px" }}>
-                      {(result.captions||[]).map(caption => (
-                        <CaptionCard
-                          key={caption.number}
-                          caption={caption}
-                          imageUrl={images[caption.number]}
-                          imageLoading={loadingImages && !images[caption.number]}
-                          onSchedule={setScheduleCaption}
-                          month={result.month}
-                          primaryTopic={result.primaryTopic}
-                        />
+                      {captions.map(caption => (
+                        <CaptionCard key={caption.number} caption={caption} imageUrl={images[caption.number]} imageLoading={loadingImages && !images[caption.number]} onSchedule={setScheduleCaption} month={resultMeta?.month || month} primaryTopic={resultMeta?.primaryTopic || primaryTopic} />
                       ))}
                     </div>
                   )}
 
                   {activeTab === "blogs" && (
                     <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-                      {(result.blogs||[]).map(blog => (
-                        <BlogCard key={blog.number} blog={blog} month={result.month} primaryTopic={result.primaryTopic} />
+                      {blogs.map(blog => (
+                        <BlogCard key={blog.number} blog={blog} month={resultMeta?.month || month} primaryTopic={resultMeta?.primaryTopic || primaryTopic} />
                       ))}
                     </div>
                   )}
