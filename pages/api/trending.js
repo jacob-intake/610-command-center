@@ -106,6 +106,13 @@ Return only the JSON. Nothing else.`;
   let raw = textContent.text.trim();
   raw = raw.replace(/^```json\n?/, "").replace(/^```\n?/, "").replace(/\n?```$/, "").trim();
 
+  // Extract JSON object even if there is text before or after it
+  const jsonStart = raw.indexOf("{");
+  const jsonEnd = raw.lastIndexOf("}");
+  if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+    raw = raw.substring(jsonStart, jsonEnd + 1);
+  }
+
   return JSON.parse(raw);
 }
 
