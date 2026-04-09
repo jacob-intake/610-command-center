@@ -22,6 +22,20 @@ async function getGoogleAccessToken() {
   // Remove any surrounding quotes that might have been included
   privateKey = privateKey.replace(/^["']|["']$/g, "");
   privateKey = privateKey.trim();
+  // Force correct PEM structure - ensure newline after header and before footer
+  privateKey = privateKey
+    .replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
+    .replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
+    .replace(/\n\n/g, "\n");
+  // Break the base64 body into 64-char lines if it is one long string
+  const pemLines = privateKey.split("\n");
+  const header = pemLines[0];
+  const footer = pemLines[pemLines.length - 1];
+  const body = pemLines.slice(1, pemLines.length - 1).join("");
+  if (body.length > 64 && !body.includes(" ")) {
+    const chunks = body.match(/.{1,64}/g) || [];
+    privateKey = [header, ...chunks, footer].join("\n") + "\n";
+  }
 
   const now = Math.floor(Date.now() / 1000);
   const payload = {
