@@ -2,5 +2,13 @@
   "framework": "nextjs",
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
-  "installCommand": "npm install"
+  "installCommand": "npm install",
+  "functions": {
+    "pages/api/generate.js": {
+      "maxDuration": 60
+    },
+    "pages/api/images.js": {
+      "maxDuration": 60
+    }
+  }
 }
