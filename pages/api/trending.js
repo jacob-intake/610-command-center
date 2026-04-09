@@ -1,0 +1,191 @@
+const VERTICALS = [
+  "AI agents for small business",
+  "digital marketing trends",
+  "SEO and AEO strategies",
+  "GEO generative engine optimization",
+  "content creation and marketing",
+  "AI automation for business workflows",
+  "website development and design",
+  "podcast production and marketing",
+];
+
+async function getGoogleAccessToken() {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const rawKey = process.env.GOOGLE_PRIVATE_KEY;
+
+  if (!email || !rawKey) throw new Error("Google credentials not configured");
+
+  const privateKey = rawKey.replace(/\\n/g, "\n");
+
+  const now = Math.floor(Date.now() / 1000);
+  const payload = {
+    iss: email,
+    scope: "https://www.googleapis.com/auth/spreadsheets",
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+  };
+
+  const header = { alg: "RS256", typ: "JWT" };
+  const encode = (obj) => Buffer.from(JSON.stringify(obj)).toString("base64url");
+  const signingInput = `${encode(header)}.${encode(payload)}`;
+
+  const { createSign } = await import("crypto");
+  const sign = createSign("RSA-SHA256");
+  sign.update(signingInput);
+  const signature = sign.sign(privateKey, "base64url");
+  const jwt = `${signingInput}.${signature}`;
+
+  const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion: jwt,
+    }),
+  });
+
+  const tokenData = await tokenRes.json();
+  if (!tokenData.access_token) throw new Error(`Token error: ${JSON.stringify(tokenData)}`);
+  return tokenData.access_token;
+}
+
+async function researchTrendingTopics() {
+  const currentDate = new Date();
+  const nextMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1);
+  const monthName = nextMonth.toLocaleString("default", { month: "long", year: "numeric" });
+
+  const prompt = `You are a content strategist for 610 Marketing and PR, a boutique digital marketing and AI implementation agency in San Diego.
+
+Research and identify the top trending topics for ${monthName} content across these verticals:
+${VERTICALS.map((v, i) => `${i + 1}. ${v}`).join("\n")}
+
+Based on current industry momentum, recent developments, and what small business owners are actively searching for, identify the single best primary topic and secondary topic for a month of content.
+
+Return ONLY a valid JSON object with no other text:
+{
+  "month": "${monthName}",
+  "primaryTopic": "the single best primary topic as a short phrase",
+  "secondaryTopic": "the best complementary secondary topic as a short phrase",
+  "contentNotes": "2-3 sentences explaining why these topics are trending now, what angle to take, and any specific hooks or news hooks to leverage. Written as instructions for a content creator.",
+  "trendingTopics": [
+    "topic 1",
+    "topic 2",
+    "topic 3",
+    "topic 4",
+    "topic 5"
+  ]
+}
+
+Return only the JSON. Nothing else.`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-opus-4-5",
+      max_tokens: 1000,
+      tools: [{ type: "web_search_20250305", name: "web_search" }],
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Anthropic API error: ${response.status} ${errText}`);
+  }
+
+  const data = await response.json();
+  const textContent = data.content?.find(c => c.type === "text");
+  if (!textContent) throw new Error("No text response from research");
+
+  let raw = textContent.text.trim();
+  raw = raw.replace(/^```json\n?/, "").replace(/^```\n?/, "").replace(/\n?```$/, "").trim();
+
+  return JSON.parse(raw);
+}
+
+async function writeToGoogleSheet(topics) {
+  const sheetId = process.env.GOOGLE_SHEET_ID;
+  if (!sheetId) throw new Error("Google Sheet ID not configured");
+
+  const accessToken = await getGoogleAccessToken();
+
+  // First get existing rows to find the next empty row
+  const getRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A:A`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  const getData = await getRes.json();
+  const existingRows = getData.values?.length || 1;
+  const nextRow = existingRows + 1;
+
+  const values = [[
+    topics.month,
+    topics.primaryTopic,
+    topics.secondaryTopic,
+    topics.contentNotes,
+    "Ready",
+  ]];
+
+  const writeRes = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A${nextRow}:E${nextRow}?valueInputOption=RAW`,
+    {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ values }),
+    }
+  );
+
+  if (!writeRes.ok) {
+    const errText = await writeRes.text();
+    throw new Error(`Sheet write error: ${writeRes.status} ${errText}`);
+  }
+
+  return await writeRes.json();
+}
+
+export default async function handler(req, res) {
+  // Allow GET for cron triggers, POST for manual triggers
+  if (req.method !== "GET" && req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Simple security check for cron calls
+  const cronSecret = req.headers["x-cron-secret"] || req.query.secret;
+  const expectedSecret = process.env.CRON_SECRET;
+  if (expectedSecret && cronSecret !== expectedSecret) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    console.log("Starting trending topics research...");
+    const topics = await researchTrendingTopics();
+    console.log("Topics researched:", topics.primaryTopic, "/", topics.secondaryTopic);
+
+    await writeToGoogleSheet(topics);
+    console.log("Written to Google Sheet successfully");
+
+    return res.status(200).json({
+      success: true,
+      message: `Trending topics for ${topics.month} written to Google Sheet`,
+      month: topics.month,
+      primaryTopic: topics.primaryTopic,
+      secondaryTopic: topics.secondaryTopic,
+      contentNotes: topics.contentNotes,
+      trendingTopics: topics.trendingTopics,
+    });
+
+  } catch (error) {
+    console.error("Trending topics error:", error);
+    return res.status(500).json({ error: error.message });
+  }
+}
