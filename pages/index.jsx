@@ -58,7 +58,7 @@ function downloadText(filename, content) {
   URL.revokeObjectURL(url);
 }
 
-async function compositeImageWithWatermark(imageUrl) {
+async function applyWatermark(imageSource) {
   return new Promise((resolve) => {
     const canvas = document.createElement("canvas");
     canvas.width = 1024; canvas.height = 1024;
@@ -66,55 +66,88 @@ async function compositeImageWithWatermark(imageUrl) {
 
     const img = new Image();
     img.crossOrigin = "anonymous";
+
     img.onload = () => {
       ctx.drawImage(img, 0, 0, 1024, 1024);
 
       const logo = new Image();
-      logo.crossOrigin = "anonymous";
       logo.onload = () => {
-        const logoW = 160;
-        const logoH = (logo.height / logo.width) * logoW;
-        const x = (1024 - logoW) / 2;
-        const y = 1024 - logoH - 24;
+        const logoW = 150;
+        const logoH = Math.round((logo.height / logo.width) * logoW);
+        const x = Math.round((1024 - logoW) / 2);
+        const y = 1024 - logoH - 20;
 
-        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
         ctx.beginPath();
-        ctx.roundRect(x - 12, y - 8, logoW + 24, logoH + 16, 6);
+        if (ctx.roundRect) {
+          ctx.roundRect(x - 14, y - 10, logoW + 28, logoH + 20, 6);
+        } else {
+          ctx.rect(x - 14, y - 10, logoW + 28, logoH + 20);
+        }
         ctx.fill();
 
         ctx.drawImage(logo, x, y, logoW, logoH);
         resolve(canvas.toDataURL("image/jpeg", 0.92));
       };
-      logo.onerror = () => resolve(canvas.toDataURL("image/jpeg", 0.92));
-      logo.src = "/logo-watermark.png";
+
+      logo.onerror = () => {
+        resolve(canvas.toDataURL("image/jpeg", 0.92));
+      };
+
+      logo.src = "/logo-watermark.png?" + Date.now();
     };
+
     img.onerror = () => resolve(null);
-    img.src = imageUrl;
+
+    if (imageSource.startsWith("data:")) {
+      img.src = imageSource;
+    } else {
+      img.src = imageSource;
+    }
   });
 }
 
 function CaptionCard({ caption, imageUrl, imageLoading, onSchedule, month, primaryTopic }) {
   const [copied, setCopied] = useState(false);
   const [watermarked, setWatermarked] = useState(null);
+  const [watermarking, setWatermarking] = useState(false);
+  const [customImage, setCustomImage] = useState(null);
+  const fileInputRef = useRef(null);
   const colors = TYPE_COLORS[caption.type] || TYPE_COLORS["Educational tip"];
 
+  const sourceImage = customImage || imageUrl;
+
   useEffect(() => {
-    if (imageUrl && !watermarked) {
-      compositeImageWithWatermark(imageUrl).then(result => {
+    if (sourceImage && !watermarking) {
+      setWatermarking(true);
+      applyWatermark(sourceImage).then(result => {
         if (result) setWatermarked(result);
+        setWatermarking(false);
       });
     }
-  }, [imageUrl]);
+  }, [sourceImage]);
 
-  const displayImage = watermarked || imageUrl;
+  function handleReplaceImage(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setCustomImage(ev.target.result);
+      setWatermarked(null);
+    };
+    reader.readAsDataURL(file);
+  }
 
   function handleDownloadImage() {
-    if (!displayImage) return;
+    const finalImage = watermarked || sourceImage;
+    if (!finalImage) return;
     const a = document.createElement("a");
-    a.href = displayImage;
+    a.href = finalImage;
     a.download = `610-post-${caption.number}.jpg`;
     a.click();
   }
+
+  const displayImage = watermarked || sourceImage;
 
   return (
     <div style={{ background:colors.bg, border:`1px solid ${colors.border}`, borderRadius:"6px", overflow:"hidden", display:"flex", flexDirection:"column" }}>
@@ -124,18 +157,27 @@ function CaptionCard({ caption, imageUrl, imageLoading, onSchedule, month, prima
       </div>
 
       <div style={{ position:"relative", width:"100%", paddingBottom:"100%", background:"#0a0a0a", overflow:"hidden" }}>
-        {imageLoading && (
+        {(imageLoading || watermarking) && !displayImage && (
           <div style={{ position:"absolute", inset:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:"12px" }}>
             <div style={{ opacity:0.2 }}><Logo610 size="sm" /></div>
-            <span style={{ fontSize:"11px", color:"#333", fontFamily:"monospace" }}>Generating...</span>
+            <span style={{ fontSize:"11px", color:"#333", fontFamily:"monospace" }}>{imageLoading ? "Generating..." : "Applying watermark..."}</span>
           </div>
         )}
-        {displayImage && <img src={displayImage} alt={caption.type} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />}
-        {!displayImage && !imageLoading && (
+        {displayImage && (
+          <img src={displayImage} alt={caption.type} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
+        )}
+        {!displayImage && !imageLoading && !watermarking && (
           <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", opacity:0.1 }}>
             <Logo610 size="sm" />
           </div>
         )}
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleReplaceImage} style={{ display:"none" }} />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          style={{ position:"absolute", top:"8px", right:"8px", background:"rgba(0,0,0,0.7)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#ccc", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}
+        >
+          Replace
+        </button>
       </div>
 
       <div style={{ padding:"14px", flex:1 }}>
@@ -201,12 +243,10 @@ function BlogWriter({ blog, clientId, onClose }) {
   useEffect(() => { writeBlog(); }, []);
 
   async function writeBlog() {
-    setWriting(true);
-    setError(null);
+    setWriting(true); setError(null);
     try {
       const res = await fetch("/api/blog", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
+        method:"POST", headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ blog, primaryTopic: blog.title, clientId }),
       });
       const data = await res.json();
@@ -217,12 +257,10 @@ function BlogWriter({ blog, clientId, onClose }) {
   }
 
   async function publishToWordPress() {
-    setPublishing(true);
-    setError(null);
+    setPublishing(true); setError(null);
     try {
       const res = await fetch("/api/wordpress", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
+        method:"POST", headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ title: blog.title, content, clientId }),
       });
       const data = await res.json();
@@ -239,7 +277,7 @@ function BlogWriter({ blog, clientId, onClose }) {
       <div style={{ width:"100%", maxWidth:"800px", background:"#0d0d0d", borderLeft:"1px solid #1e1e1e", display:"flex", flexDirection:"column", height:"100vh" }}>
         <div style={{ padding:"20px 28px", borderBottom:"1px solid #1a1a1a", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
           <div>
-            <p style={{ fontSize:"10px", color:"#444", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", marginBottom:"4px" }}>Blog Writer</p>
+            <p style={{ fontSize:"10px", color:"#444", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", marginBottom:"4px" }}>Blog Writer — GPT-4o</p>
             <h2 style={{ fontSize:"16px", fontWeight:"700", color:"#f0f0f0", fontFamily:"'Helvetica Neue',Arial,sans-serif", margin:0, lineHeight:"1.3" }}>{blog.title}</h2>
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", color:"#555", fontSize:"22px", cursor:"pointer", lineHeight:1, padding:"4px" }}>x</button>
@@ -250,13 +288,11 @@ function BlogWriter({ blog, clientId, onClose }) {
             <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"80px 40px", gap:"20px", textAlign:"center" }}>
               <div style={{ background:"#000", padding:"20px 28px", borderRadius:"4px", opacity:0.3 }}><Logo610 size="md" /></div>
               <p style={{ fontSize:"15px", color:"#555", fontWeight:"600" }}>GPT-4o is writing your blog...</p>
-              <p style={{ fontSize:"12px", color:"#333" }}>Writing a full 2,000 word post. This takes about 30 seconds.</p>
+              <p style={{ fontSize:"12px", color:"#333" }}>Writing a full 2,000 word SEO-optimized post. About 30 seconds.</p>
             </div>
           )}
 
-          {error && (
-            <div style={{ background:"#110808", border:"1px solid #c0392b", borderRadius:"3px", padding:"16px", color:"#c0392b", fontSize:"13px", lineHeight:"1.5" }}>{error}</div>
-          )}
+          {error && <div style={{ background:"#110808", border:"1px solid #c0392b", borderRadius:"3px", padding:"16px", color:"#c0392b", fontSize:"13px", lineHeight:"1.5" }}>{error}</div>}
 
           {published && (
             <div style={{ background:"#0a1a0a", border:"1px solid #1a5a1a", borderRadius:"4px", padding:"16px", marginBottom:"20px" }}>
@@ -278,7 +314,11 @@ function BlogWriter({ blog, clientId, onClose }) {
             <div style={{ marginLeft:"auto", display:"flex", gap:"8px" }}>
               <button onClick={() => navigator.clipboard.writeText(content)} style={btnStyle("#161616","#2a2a2a","#888")}>Copy</button>
               <button onClick={() => downloadText(`610-blog-${blog.number}.txt`, `${blog.title}\n\n${content}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download</button>
-              <button onClick={publishToWordPress} disabled={publishing || !!published} style={{ ...btnStyle(published?"#0a1a0a":publishing?"#161616":"#fff", published?"#1a5a1a":publishing?"#2a2a2a":"#fff", published?"#4ad9a0":publishing?"#333":"#000"), fontWeight:"700", padding:"8px 20px" }}>
+              <button
+                onClick={publishToWordPress}
+                disabled={publishing || !!published}
+                style={{ ...btnStyle(published?"#0a1a0a":publishing?"#161616":"#fff", published?"#1a5a1a":publishing?"#2a2a2a":"#fff", published?"#4ad9a0":publishing?"#333":"#000"), fontWeight:"700", padding:"8px 20px" }}
+              >
                 {published ? "Published" : publishing ? "Publishing..." : "Push to WordPress"}
               </button>
             </div>
@@ -302,7 +342,7 @@ function ScheduleModal({ caption, onClose }) {
           <p style={{ fontSize:"13px", color:"#bbb", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", margin:0 }}>{caption.text}</p>
         </div>
         <div style={{ background:"#0d1628", border:"1px solid #1a3a6b", borderRadius:"4px", padding:"16px", marginBottom:"20px" }}>
-          <p style={{ fontSize:"11px", color:"#4a90d9", fontFamily:"'Helvetique Neue',Arial,sans-serif", margin:"0 0 6px 0", fontWeight:"700", textTransform:"uppercase", letterSpacing:"1px" }}>Buffer Integration Coming Soon</p>
+          <p style={{ fontSize:"11px", color:"#4a90d9", margin:"0 0 6px 0", fontWeight:"700", textTransform:"uppercase", letterSpacing:"1px", fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>Buffer Integration Coming Soon</p>
           <p style={{ fontSize:"12px", color:"#555", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.6", margin:0 }}>Direct one-click Buffer scheduling is coming in the next update. For now, copy this caption and paste it into Buffer to schedule your post.</p>
         </div>
         <div style={{ display:"flex", gap:"8px" }}>
@@ -444,10 +484,10 @@ export default function CommandCenter() {
           <div style={{ maxWidth:"1600px", margin:"0 auto", height:"64px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <LogoHeader />
             <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-              <select value={selectedClient.id} onChange={e => setSelectedClient(CLIENTS.find(c => c.id === e.target.value))} style={{ padding:"7px 12px", background:"#111", border:"1px solid #222", borderRadius:"3px", color:"#f0f0f0", fontSize:"12px", fontFamily:"'Helvetica Neue',Arial,sans-serif", cursor:"pointer" }}>
-                {CLIENTS.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              <select value={selectedClient.id} onChange={e=>setSelectedClient(CLIENTS.find(c=>c.id===e.target.value))} style={{ padding:"7px 12px", background:"#111", border:"1px solid #222", borderRadius:"3px", color:"#f0f0f0", fontSize:"12px", fontFamily:"'Helvetica Neue',Arial,sans-serif", cursor:"pointer" }}>
+                {CLIENTS.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
-              <span style={{ fontSize:"10px", color:"#2a2a2a", fontFamily:"monospace", border:"1px solid #1e1e1e", padding:"3px 8px", borderRadius:"2px" }}>v1.1</span>
+              <span style={{ fontSize:"10px", color:"#2a2a2a", fontFamily:"monospace", border:"1px solid #1e1e1e", padding:"3px 8px", borderRadius:"2px" }}>v1.2</span>
             </div>
           </div>
         </header>
@@ -455,9 +495,7 @@ export default function CommandCenter() {
         <main style={{ maxWidth:"1600px", margin:"0 auto", padding:"40px 40px 60px", flex:1, width:"100%" }}>
           <div style={{ marginBottom:"32px" }}>
             <h1 style={{ fontSize:"24px", fontWeight:"700", letterSpacing:"-0.5px", marginBottom:"6px" }}>Monthly Content Generator</h1>
-            <p style={{ fontSize:"13px", color:"#444" }}>
-              {selectedClient.name} — Generate 25 social captions with AI images and 4 full blog posts
-            </p>
+            <p style={{ fontSize:"13px", color:"#444" }}>{selectedClient.name} — Generate 25 social captions with watermarked images and 4 full SEO-optimized blog posts</p>
           </div>
 
           <div style={{ display:"grid", gridTemplateColumns:"360px 1fr", gap:"20px", alignItems:"start" }}>
@@ -517,7 +555,7 @@ export default function CommandCenter() {
               {loadingImages && (
                 <div style={{ background:"#080808", border:"1px solid #141414", borderRadius:"3px", padding:"14px" }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"8px" }}>
-                    <span style={{ fontSize:"11px", color:"#4a90d9", fontFamily:"monospace" }}>Generating images...</span>
+                    <span style={{ fontSize:"11px", color:"#4a90d9", fontFamily:"monospace" }}>Generating HD images...</span>
                     <span style={{ fontSize:"11px", color:"#333", fontFamily:"monospace" }}>{imagesProgress}/25</span>
                   </div>
                   <div style={{ background:"#161616", borderRadius:"2px", height:"3px", overflow:"hidden" }}>
@@ -530,7 +568,11 @@ export default function CommandCenter() {
 
               <div style={{ background:"#080808", border:"1px solid #141414", borderRadius:"3px", padding:"16px" }}>
                 <p style={{ fontSize:"10px", color:"#333", textTransform:"uppercase", letterSpacing:"1.5px", marginBottom:"14px", fontWeight:"600" }}>Output includes</p>
-                {[["25","Social captions with watermarked images"],["4","Full 2,000 word blog posts via GPT-4o"],["1","WordPress draft push per approved blog"]].map(([n,l]) => (
+                {[
+                  ["25","HD social captions with watermarked images"],
+                  ["4","Full SEO/AEO/GEO-optimized blog posts"],
+                  ["1","WordPress draft push per approved blog"],
+                ].map(([n,l]) => (
                   <div key={n} style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"10px" }}>
                     <span style={{ fontSize:"20px", fontWeight:"700", color:"#fff", minWidth:"28px", lineHeight:1 }}>{n}</span>
                     <span style={{ fontSize:"12px", color:"#3a3a3a", lineHeight:"1.4" }}>{l}</span>
@@ -574,7 +616,15 @@ export default function CommandCenter() {
                   {activeTab === "captions" && (
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:"16px" }}>
                       {captions.map(caption => (
-                        <CaptionCard key={caption.number} caption={caption} imageUrl={images[caption.number]} imageLoading={loadingImages && !images[caption.number]} onSchedule={setScheduleCaption} month={resultMeta?.month || month} primaryTopic={resultMeta?.primaryTopic || primaryTopic} />
+                        <CaptionCard
+                          key={caption.number}
+                          caption={caption}
+                          imageUrl={images[caption.number]}
+                          imageLoading={loadingImages && !images[caption.number]}
+                          onSchedule={setScheduleCaption}
+                          month={resultMeta?.month || month}
+                          primaryTopic={resultMeta?.primaryTopic || primaryTopic}
+                        />
                       ))}
                     </div>
                   )}
@@ -595,7 +645,7 @@ export default function CommandCenter() {
         <footer style={{ borderTop:"1px solid #111", padding:"20px 40px", display:"flex", alignItems:"center", justifyContent:"center", gap:"16px", fontSize:"11px", color:"#2a2a2a", background:"#000" }}>
           <span>610 Marketing & PR</span>
           <span style={{ color:"#1a1a1a" }}>|</span>
-          <span>Command Center v1.1</span>
+          <span>Command Center v1.2</span>
           <span style={{ color:"#1a1a1a" }}>|</span>
           <span>San Diego, CA</span>
         </footer>
