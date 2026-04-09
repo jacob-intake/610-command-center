@@ -29,12 +29,12 @@ async function getGoogleAccessToken() {
     .replace(/\n\n/g, "\n");
   // Break the base64 body into 64-char lines if it is one long string
   const pemLines = privateKey.split("\n");
-  const header = pemLines[0];
-  const footer = pemLines[pemLines.length - 1];
-  const body = pemLines.slice(1, pemLines.length - 1).join("");
-  if (body.length > 64 && !body.includes(" ")) {
-    const chunks = body.match(/.{1,64}/g) || [];
-    privateKey = [header, ...chunks, footer].join("\n") + "\n";
+  const pemHeader = pemLines[0];
+  const pemFooter = pemLines[pemLines.length - 1];
+  const pemBody = pemLines.slice(1, pemLines.length - 1).join("");
+  if (pemBody.length > 64 && !pemBody.includes(" ")) {
+    const chunks = pemBody.match(/.{1,64}/g) || [];
+    privateKey = [pemHeader, ...chunks, pemFooter].join("\n") + "\n";
   }
 
   const now = Math.floor(Date.now() / 1000);
