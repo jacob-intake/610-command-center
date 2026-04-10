@@ -1,3 +1,5 @@
+const BUFFER_API = "https://api.buffer.com/graphql";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -10,107 +12,134 @@ export default async function handler(req, res) {
   if (!platforms || platforms.length === 0) return res.status(400).json({ error: "At least one platform is required" });
 
   const token = process.env.BUFFER_ACCESS_TOKEN;
+  const orgId = process.env.BUFFER_ORG_ID;
+
   if (!token) return res.status(500).json({ error: "Buffer access token not configured" });
+  if (!orgId) return res.status(500).json({ error: "Buffer organization ID not configured" });
+
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${token}`,
+  };
 
   try {
-    // Step 1: Get connected profiles from Buffer
-    const profilesRes = await fetch("https://api.bufferapp.com/1/profiles.json", {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!profilesRes.ok) {
-      const errText = await profilesRes.text();
-      console.error("Buffer profiles error:", profilesRes.status, errText);
-      return res.status(500).json({ error: `Buffer API error ${profilesRes.status}`, details: errText });
-    }
-
-    const profiles = await profilesRes.json();
-
-    // Step 2: Filter profiles by requested platforms
-    const platformMap = {
-      facebook: ["facebook", "facebook_page"],
-      linkedin: ["linkedin"],
-    };
-
-    const selectedProfiles = profiles.filter(p => {
-      const service = p.service?.toLowerCase();
-      return platforms.some(platform => platformMap[platform]?.includes(service));
-    });
-
-    if (selectedProfiles.length === 0) {
-      return res.status(400).json({ error: "No matching Buffer profiles found for selected platforms" });
-    }
-
-    const profileIds = selectedProfiles.map(p => p.id);
-
-    // Step 3: Handle image upload if provided
-    let mediaParams = {};
-    if (imageDataUrl) {
-      try {
-        const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, "");
-        const imageBuffer = Buffer.from(base64Data, "base64");
-
-        const uploadRes = await fetch("https://api.bufferapp.com/1/media/upload.json", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            file: base64Data,
-            type: "image/jpeg",
-          }),
-        });
-
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          if (uploadData.media_id) {
-            mediaParams = { media: { photo: uploadData.id || uploadData.media_id } };
+    // Step 1: Get all channels for this organization
+    const channelsQuery = {
+      query: `
+        query GetChannels($orgId: String!) {
+          channels(organizationId: $orgId) {
+            id
+            name
+            service
+            serviceType
           }
         }
-      } catch (imgErr) {
-        console.error("Image upload error:", imgErr.message);
+      `,
+      variables: { orgId },
+    };
+
+    const channelsRes = await fetch(BUFFER_API, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(channelsQuery),
+    });
+
+    if (!channelsRes.ok) {
+      const errText = await channelsRes.text();
+      console.error("Buffer channels error:", channelsRes.status, errText);
+      return res.status(500).json({ error: `Buffer API error ${channelsRes.status}`, details: errText });
+    }
+
+    const channelsData = await channelsRes.json();
+
+    if (channelsData.errors) {
+      console.error("Buffer GraphQL errors:", JSON.stringify(channelsData.errors));
+      return res.status(500).json({ error: "Buffer GraphQL error", details: channelsData.errors[0]?.message });
+    }
+
+    const allChannels = channelsData.data?.channels || [];
+
+    // Step 2: Filter channels by requested platforms
+    const platformMap = {
+      facebook: ["facebook", "facebook_page", "facebookPage"],
+      linkedin: ["linkedin", "linkedinPage"],
+    };
+
+    const selectedChannels = allChannels.filter(c => {
+      const service = (c.service || c.serviceType || "").toLowerCase();
+      return platforms.some(platform =>
+        platformMap[platform]?.some(p => service.includes(p.toLowerCase()))
+      );
+    });
+
+    if (selectedChannels.length === 0) {
+      return res.status(400).json({
+        error: "No matching channels found. Available channels: " + allChannels.map(c => `${c.name} (${c.service || c.serviceType})`).join(", "),
+      });
+    }
+
+    // Step 3: Schedule post to each selected channel
+    const scheduledResults = [];
+    const scheduledTime = new Date(scheduledAt).toISOString();
+
+    for (const channel of selectedChannels) {
+      const createMutation = {
+        query: `
+          mutation CreatePost($input: CreatePostInput!) {
+            createPost(input: $input) {
+              post {
+                id
+                status
+                scheduledAt
+              }
+              errors {
+                message
+              }
+            }
+          }
+        `,
+        variables: {
+          input: {
+            organizationId: orgId,
+            channelId: channel.id,
+            text,
+            scheduledAt: scheduledTime,
+          },
+        },
+      };
+
+      const postRes = await fetch(BUFFER_API, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(createMutation),
+      });
+
+      const postData = await postRes.json();
+
+      if (postData.errors || postData.data?.createPost?.errors?.length > 0) {
+        const errMsg = postData.errors?.[0]?.message || postData.data?.createPost?.errors?.[0]?.message;
+        console.error(`Buffer post error for ${channel.name}:`, errMsg);
+        scheduledResults.push({ channel: channel.name, success: false, error: errMsg });
+      } else {
+        scheduledResults.push({ channel: channel.name, success: true, postId: postData.data?.createPost?.post?.id });
       }
     }
 
-    // Step 4: Schedule the post
-    // Buffer requires Unix timestamp for scheduled_at
-    const scheduledTimestamp = Math.floor(new Date(scheduledAt).getTime() / 1000);
+    const successCount = scheduledResults.filter(r => r.success).length;
+    const successChannels = scheduledResults.filter(r => r.success).map(r => r.channel);
 
-    const updateBody = new URLSearchParams({
-      text,
-      scheduled_at: scheduledTimestamp.toString(),
-      now: "false",
-    });
-
-    profileIds.forEach(id => updateBody.append("profile_ids[]", id));
-
-    if (mediaParams.media?.photo) {
-      updateBody.append("media[photo]", mediaParams.media.photo);
+    if (successCount === 0) {
+      return res.status(500).json({
+        error: "Failed to schedule on any platform",
+        details: scheduledResults,
+      });
     }
-
-    const scheduleRes = await fetch("https://api.bufferapp.com/1/updates/create.json", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: updateBody.toString(),
-    });
-
-    if (!scheduleRes.ok) {
-      const errText = await scheduleRes.text();
-      console.error("Buffer schedule error:", scheduleRes.status, errText);
-      return res.status(500).json({ error: `Buffer scheduling error ${scheduleRes.status}`, details: errText });
-    }
-
-    const scheduleData = await scheduleRes.json();
 
     return res.status(200).json({
       success: true,
       message: `Post scheduled for ${new Date(scheduledAt).toLocaleString()}`,
-      platforms: selectedProfiles.map(p => p.formatted_service),
-      bufferId: scheduleData.updates?.[0]?.id,
+      platforms: successChannels,
+      results: scheduledResults,
     });
 
   } catch (error) {
