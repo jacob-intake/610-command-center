@@ -227,7 +227,7 @@ function TrendingTopicsPanel({ onUseTopic }) {
   );
 }
 
-function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule, onRetryImage, month, primaryTopic }) {
+function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule, onRetryImage, onRenderNew, month, primaryTopic }) {
   const [copied, setCopied] = useState(false);
   const [watermarked, setWatermarked] = useState(null);
   const [watermarking, setWatermarking] = useState(false);
@@ -293,9 +293,14 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
           </div>
         )}
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleReplaceImage} style={{ display:"none" }} />
-        <button onClick={() => fileInputRef.current?.click()} style={{ position:"absolute", top:"8px", right:"8px", background:"rgba(0,0,0,0.7)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#ccc", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
-          Replace
-        </button>
+        <div style={{ position:"absolute", top:"8px", right:"8px", display:"flex", gap:"4px" }}>
+          <button onClick={() => onRenderNew && onRenderNew(caption)} style={{ background:"rgba(0,0,0,0.75)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#4a90d9", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
+            New Image
+          </button>
+          <button onClick={() => fileInputRef.current?.click()} style={{ background:"rgba(0,0,0,0.75)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#ccc", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
+            Replace
+          </button>
+        </div>
       </div>
 
       <div style={{ padding:"14px", flex:1 }}>
@@ -306,7 +311,7 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
         <button onClick={() => { navigator.clipboard.writeText(caption.text); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={btnStyle("#161616","#2a2a2a","#888")}>{copied?"Copied":"Copy"}</button>
         <button onClick={() => downloadText(`610-caption-${caption.number}.txt`, `610 Marketing & PR\n${month} - ${primaryTopic}\nType: ${caption.type}\n\n${caption.text}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download Text</button>
         {displayImage && <button onClick={handleDownloadImage} style={btnStyle("#161616","#2a2a2a","#888")}>Save Image</button>}
-        <button onClick={() => onSchedule(caption, watermarked || sourceImage)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
+        <button onClick={() => onSchedule(caption, watermarked || sourceImage, imageUrl)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
       </div>
     </div>
   );
@@ -436,7 +441,7 @@ function BlogWriter({ blog, clientId, onClose }) {
   );
 }
 
-function ScheduleModal({ caption, watermarkedImage, onClose }) {
+function ScheduleModal({ caption, watermarkedImage, rawImageUrl, onClose }) {
   const now = new Date();
   now.setMinutes(now.getMinutes() + 30);
   const defaultDate = now.toISOString().slice(0, 16);
@@ -453,7 +458,7 @@ function ScheduleModal({ caption, watermarkedImage, onClose }) {
     try {
       const res = await fetch("/api/buffer", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ text: caption.text, imageDataUrl: watermarkedImage || null, scheduledAt: new Date(scheduledAt).toISOString(), platforms: selectedPlatforms }),
+        body: JSON.stringify({ text: caption.text, imageUrl: rawImageUrl || null, scheduledAt: new Date(scheduledAt).toISOString(), platforms: selectedPlatforms }),
       });
       const data = await res.json();
       if (data.success) setScheduled(data);
@@ -554,26 +559,40 @@ export default function CommandCenter() {
     setChecking(false);
   }
 
-  async function generateSingleImage(caption, isRetry = false) {
-    if (isRetry) {
-      setRetryingImages(prev => new Set([...prev, caption.number]));
-      setFailedImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
-    }
+  async function generateSingleImage(caption, isRetry = false, forceNew = false) {
+    setRetryingImages(prev => new Set([...prev, caption.number]));
+    setFailedImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
     try {
-      const imageUrl = await fetchImage(caption, primaryTopic, selectedClient.id);
-      setImages(prev => ({ ...prev, [caption.number]: imageUrl }));
-      if (isRetry) setRetryingImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
+      const res = await fetch("/api/images", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew }),
+      });
+      const data = await res.json();
+      if (data.success && data.imageUrl) {
+        setImages(prev => ({ ...prev, [caption.number]: data.imageUrl }));
+      } else {
+        throw new Error(data.error || "Failed");
+      }
     } catch {
       try {
         await new Promise(r => setTimeout(r, 2000));
-        const imageUrl = await fetchImage(caption, primaryTopic, selectedClient.id);
-        setImages(prev => ({ ...prev, [caption.number]: imageUrl }));
-        if (isRetry) setRetryingImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
+        const res = await fetch("/api/images", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew }),
+        });
+        const data = await res.json();
+        if (data.success && data.imageUrl) {
+          setImages(prev => ({ ...prev, [caption.number]: data.imageUrl }));
+        } else {
+          setFailedImages(prev => new Set([...prev, caption.number]));
+        }
       } catch {
         setFailedImages(prev => new Set([...prev, caption.number]));
-        if (isRetry) setRetryingImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
       }
     }
+    setRetryingImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
   }
 
   async function generateImagesSequentially(captionList) {
@@ -664,7 +683,7 @@ export default function CommandCenter() {
         .nav-btn:hover{color:#f0f0f0!important;border-color:#333!important}
       `}</style>
 
-      {scheduleData && <ScheduleModal caption={scheduleData.caption} watermarkedImage={scheduleData.image} onClose={()=>setScheduleData(null)} />}
+      {scheduleData && <ScheduleModal caption={scheduleData.caption} watermarkedImage={scheduleData.image} rawImageUrl={scheduleData.rawImageUrl} onClose={()=>setScheduleData(null)} />}
       {writingBlog && <BlogWriter blog={writingBlog} clientId={selectedClient.id} onClose={()=>setWritingBlog(null)} />}
 
       <div style={{ minHeight:"100vh", background:"#0a0a0a", color:"#f0f0f0", fontFamily:"'Helvetica Neue',Arial,sans-serif", display:"flex", flexDirection:"column" }}>
@@ -836,8 +855,9 @@ export default function CommandCenter() {
                               imageUrl={images[caption.number]}
                               imageLoading={(loadingImages && !images[caption.number] && !failedImages.has(caption.number)) || retryingImages.has(caption.number)}
                               imageFailed={failedImages.has(caption.number)}
-                              onSchedule={(cap, img) => setScheduleData({ caption: cap, image: img })}
+                              onSchedule={(cap, img, rawImg) => setScheduleData({ caption: cap, image: img, rawImageUrl: rawImg })}
                               onRetryImage={(cap) => generateSingleImage(cap, true)}
+                          onRenderNew={(cap) => generateSingleImage(cap, true, true)}
                               month={resultMeta?.month || month}
                               primaryTopic={resultMeta?.primaryTopic || primaryTopic}
                             />
