@@ -65,7 +65,6 @@ async function applyWatermark(imageSource) {
     const ctx = canvas.getContext("2d");
 
     const img = new Image();
-    img.crossOrigin = "anonymous";
 
     img.onload = () => {
       ctx.drawImage(img, 0, 0, 1024, 1024);
@@ -112,7 +111,13 @@ async function applyWatermark(imageSource) {
     };
 
     img.onerror = () => resolve(null);
-    img.src = imageSource;
+
+    // Proxy external URLs through our server to avoid CORS canvas taint
+    if (imageSource && imageSource.startsWith("http")) {
+      img.src = "/api/proxy-image?url=" + encodeURIComponent(imageSource);
+    } else {
+      img.src = imageSource;
+    }
   });
 }
 
