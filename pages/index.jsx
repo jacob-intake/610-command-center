@@ -63,27 +63,54 @@ async function applyWatermark(imageSource) {
     const canvas = document.createElement("canvas");
     canvas.width = 1024; canvas.height = 1024;
     const ctx = canvas.getContext("2d");
+
     const img = new Image();
     img.crossOrigin = "anonymous";
+
     img.onload = () => {
       ctx.drawImage(img, 0, 0, 1024, 1024);
-      const logo = new Image();
-      logo.onload = () => {
-        const logoW = 150;
-        const logoH = Math.round((logo.height / logo.width) * logoW);
-        const x = Math.round((1024 - logoW) / 2);
-        const y = 1024 - logoH - 20;
-        ctx.fillStyle = "rgba(0,0,0,0.5)";
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x - 14, y - 10, logoW + 28, logoH + 20, 6);
-        else ctx.rect(x - 14, y - 10, logoW + 28, logoH + 20);
-        ctx.fill();
-        ctx.drawImage(logo, x, y, logoW, logoH);
-        resolve(canvas.toDataURL("image/jpeg", 0.92));
-      };
-      logo.onerror = () => resolve(canvas.toDataURL("image/jpeg", 0.92));
-      logo.src = "/logo-watermark.png?" + Date.now();
+
+      // Draw branded watermark using canvas text - no file dependency
+      const pillW = 260;
+      const pillH = 64;
+      const pillX = (1024 - pillW) / 2;
+      const pillY = 1024 - pillH - 18;
+      const rx = 10;
+
+      // Dark rounded pill background
+      ctx.fillStyle = "rgba(0, 0, 0, 0.62)";
+      ctx.beginPath();
+      ctx.moveTo(pillX + rx, pillY);
+      ctx.lineTo(pillX + pillW - rx, pillY);
+      ctx.quadraticCurveTo(pillX + pillW, pillY, pillX + pillW, pillY + rx);
+      ctx.lineTo(pillX + pillW, pillY + pillH - rx);
+      ctx.quadraticCurveTo(pillX + pillW, pillY + pillH, pillX + pillW - rx, pillY + pillH);
+      ctx.lineTo(pillX + rx, pillY + pillH);
+      ctx.quadraticCurveTo(pillX, pillY + pillH, pillX, pillY + pillH - rx);
+      ctx.lineTo(pillX, pillY + rx);
+      ctx.quadraticCurveTo(pillX, pillY, pillX + rx, pillY);
+      ctx.closePath();
+      ctx.fill();
+
+      const centerX = 512;
+
+      // "610" in bold large text
+      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.font = "bold 36px 'Arial Black', Arial, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "alphabetic";
+      ctx.letterSpacing = "-1px";
+      ctx.fillText("610", centerX, pillY + 42);
+
+      // "Marketing" in lighter smaller text
+      ctx.fillStyle = "rgba(255, 255, 255, 0.85)";
+      ctx.font = "13px Arial, sans-serif";
+      ctx.letterSpacing = "3px";
+      ctx.fillText("MARKETING", centerX, pillY + 58);
+
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
     };
+
     img.onerror = () => resolve(null);
     img.src = imageSource;
   });
@@ -232,9 +259,19 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
   const [watermarked, setWatermarked] = useState(null);
   const [watermarking, setWatermarking] = useState(false);
   const [customImage, setCustomImage] = useState(null);
+  const [prevImageUrl, setPrevImageUrl] = useState(null);
   const fileInputRef = useRef(null);
   const colors = TYPE_COLORS[caption.type] || TYPE_COLORS["Educational tip"];
   const sourceImage = customImage || imageUrl;
+
+  useEffect(() => {
+    // Reset watermark whenever imageUrl changes (new image generated)
+    if (imageUrl !== prevImageUrl) {
+      setPrevImageUrl(imageUrl);
+      setWatermarked(null);
+      setCustomImage(null);
+    }
+  }, [imageUrl]);
 
   useEffect(() => {
     if (sourceImage && !watermarking) {
