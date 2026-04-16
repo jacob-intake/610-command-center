@@ -9,7 +9,7 @@ const CHANNEL_MAP = {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { text, imageUrl, scheduledAt, platforms } = req.body;
+  const { text, imageUrl, imageUrls, scheduledAt, platforms } = req.body;
 
   if (!text) return res.status(400).json({ error: "Caption text is required" });
   if (!scheduledAt) return res.status(400).json({ error: "Scheduled time is required" });
@@ -49,8 +49,14 @@ export default async function handler(req, res) {
     const results = [];
 
     for (const channel of selectedChannels) {
-      // Build mutation - imageUrl at this point is already a permanent WordPress URL
-      const assetsBlock = imageUrl ? `, assets: { images: [{ url: ${JSON.stringify(imageUrl)} }] }` : "";
+      // Build assets block - supports single image or carousel (array of images)
+      let assetsBlock = "";
+      if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) {
+        const imgList = imageUrls.map(u => `{ url: ${JSON.stringify(u)} }`).join(", ");
+        assetsBlock = `, assets: { images: [${imgList}] }`;
+      } else if (imageUrl) {
+        assetsBlock = `, assets: { images: [{ url: ${JSON.stringify(imageUrl)} }] }`;
+      }
 
       const mutation = `
         mutation CreatePost {
