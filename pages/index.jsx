@@ -13,6 +13,7 @@ const TYPE_COLORS = {
   "AI and automation":  { bg: "#0a1a14", border: "#1a5a3a", label: "#4ad9a0" },
   "San Diego local":    { bg: "#1a1200", border: "#5a4200", label: "#d9a84a" },
   "610 services":       { bg: "#1a0a0a", border: "#5a1a1a", label: "#d94a4a" },
+  "Explanatory":        { bg: "#0a1420", border: "#1a4a6a", label: "#4ab8d9" },
 };
 
 const BATCH_LABELS = [
@@ -258,9 +259,41 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
   const [watermarking, setWatermarking] = useState(false);
   const [customImage, setCustomImage] = useState(null);
   const [prevImageUrl, setPrevImageUrl] = useState(null);
+  const [carouselImages, setCarouselImages] = useState([]);
+  const [activeSlide, setActiveSlide] = useState(0);
   const fileInputRef = useRef(null);
   const colors = TYPE_COLORS[caption.type] || TYPE_COLORS["Educational tip"];
   const sourceImage = customImage || imageUrl;
+
+  // Generate additional carousel images when first image loads
+  useEffect(() => {
+    if (!caption.isCarousel || !imageUrl || carouselImages.length > 0) return;
+    setCarouselImages([imageUrl]);
+    // Generate 3 more images for the remaining slides
+    const slideTexts = [caption.slide_2, caption.slide_3, caption.slide_4].filter(Boolean);
+    slideTexts.forEach(async (slideText, i) => {
+      try {
+        const res = await fetch("/api/images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            caption: { ...caption, text: slideText, number: caption.number + (i + 1) * 0.1 },
+            primaryTopic,
+            clientId: "610-marketing",
+            forceNew: true,
+          }),
+        });
+        const data = await res.json();
+        if (data.success && data.imageUrl) {
+          setCarouselImages(prev => {
+            const updated = [...prev];
+            updated[i + 1] = data.imageUrl;
+            return updated;
+          });
+        }
+      } catch { /* ignore individual slide failures */ }
+    });
+  }, [imageUrl, caption.isCarousel]);
 
   useEffect(() => {
     // When imageUrl changes (new image or first load), reset and re-watermark
@@ -309,7 +342,10 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
   return (
     <div style={{ background:colors.bg, border:`1px solid ${colors.border}`, borderRadius:"6px", overflow:"hidden", display:"flex", flexDirection:"column" }}>
       <div style={{ padding:"10px 14px", borderBottom:`1px solid ${colors.border}`, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span style={{ fontSize:"10px", color:colors.label, fontFamily:"'Helvetica Neue',Arial,sans-serif", textTransform:"uppercase", letterSpacing:"1.2px", fontWeight:"600" }}>{caption.type}</span>
+        <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+          <span style={{ fontSize:"10px", color:colors.label, fontFamily:"'Helvetica Neue',Arial,sans-serif", textTransform:"uppercase", letterSpacing:"1.2px", fontWeight:"600" }}>{caption.type}</span>
+          {caption.isCarousel && <span style={{ fontSize:"9px", color:"#d9a84a", fontFamily:"monospace", border:"1px solid #5a4200", padding:"1px 6px", borderRadius:"2px", textTransform:"uppercase", letterSpacing:"0.5px" }}>Carousel 4 slides</span>}
+        </div>
         <span style={{ fontSize:"10px", color:"#333", fontFamily:"monospace" }}>#{caption.number}</span>
       </div>
 
@@ -328,7 +364,17 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
             </button>
           </div>
         )}
-        {displayImage && <img src={displayImage} alt={caption.type} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />}
+        {caption.isCarousel && carouselImages.length > 1 && (
+          <div style={{ position:"absolute", bottom:"44px", left:0, right:0, display:"flex", justifyContent:"center", gap:"5px", zIndex:2 }}>
+            {[0,1,2,3].map(i => (
+              <button key={i} onClick={() => setActiveSlide(i)} style={{ width:"8px", height:"8px", borderRadius:"50%", background:activeSlide===i?"#fff":"rgba(255,255,255,0.35)", border:"none", cursor:"pointer", padding:0 }} />
+            ))}
+          </div>
+        )}
+        {caption.isCarousel && carouselImages.length > 1
+          ? <img src={carouselImages[activeSlide] || displayImage} alt={`Slide ${activeSlide+1}`} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
+          : displayImage && <img src={displayImage} alt={caption.type} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
+        }
         {!displayImage && !imageLoading && !watermarking && !imageFailed && (
           <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", opacity:0.1 }}>
             <Logo610 size="sm" />
@@ -346,14 +392,25 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
       </div>
 
       <div style={{ padding:"14px", flex:1 }}>
-        <p style={{ fontSize:"13px", color:"#ccc", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", margin:0 }}>{caption.text}</p>
+        <p style={{ fontSize:"13px", color:"#ccc", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", margin:0, whiteSpace:"pre-line" }}>{caption.text}</p>
+        {caption.isCarousel && caption.slide_1 && (
+          <div style={{ marginTop:"14px", borderTop:"1px solid #1a1a1a", paddingTop:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
+            <p style={{ fontSize:"9px", color:"#444", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", margin:0 }}>Slide content</p>
+            {[caption.slide_1, caption.slide_2, caption.slide_3, caption.slide_4].map((slide, i) => (
+              <div key={i} style={{ display:"flex", gap:"8px", alignItems:"flex-start" }}>
+                <span style={{ fontSize:"9px", color:"#555", fontFamily:"monospace", background:"#161616", border:"1px solid #222", borderRadius:"2px", padding:"2px 5px", minWidth:"20px", textAlign:"center", marginTop:"2px" }}>{i+1}</span>
+                <p style={{ fontSize:"11px", color:"#777", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.5", margin:0 }}>{slide}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ padding:"10px 14px", borderTop:`1px solid ${colors.border}`, display:"flex", gap:"6px", flexWrap:"wrap" }}>
         <button onClick={() => { navigator.clipboard.writeText(caption.text); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={btnStyle("#161616","#2a2a2a","#888")}>{copied?"Copied":"Copy"}</button>
         <button onClick={() => downloadText(`610-caption-${caption.number}.txt`, `610 Marketing & PR\n${month} - ${primaryTopic}\nType: ${caption.type}\n\n${caption.text}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download Text</button>
         {displayImage && <button onClick={handleDownloadImage} style={btnStyle("#161616","#2a2a2a","#888")}>Save Image</button>}
-        <button onClick={() => onSchedule(caption, watermarked || sourceImage, imageUrl)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
+        <button onClick={() => onSchedule(caption, watermarked || sourceImage, imageUrl, caption.isCarousel ? carouselImages : null)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
       </div>
     </div>
   );
@@ -483,7 +540,7 @@ function BlogWriter({ blog, clientId, onClose }) {
   );
 }
 
-function ScheduleModal({ caption, watermarkedImage, rawImageUrl, onClose }) {
+function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUrls, onClose }) {
   const now = new Date();
   now.setMinutes(now.getMinutes() + 30);
   const defaultDate = now.toISOString().slice(0, 16);
@@ -500,7 +557,7 @@ function ScheduleModal({ caption, watermarkedImage, rawImageUrl, onClose }) {
     try {
       const res = await fetch("/api/buffer", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ text: caption.text, imageUrl: rawImageUrl || null, scheduledAt: new Date(scheduledAt).toISOString(), platforms: selectedPlatforms }),
+        body: JSON.stringify({ text: caption.text, imageUrl: rawImageUrl || null, imageUrls: carouselImageUrls || null, scheduledAt: new Date(scheduledAt).toISOString(), platforms: selectedPlatforms }),
       });
       const data = await res.json();
       if (data.success) setScheduled(data);
@@ -737,7 +794,7 @@ export default function CommandCenter() {
         .nav-btn:hover{color:#f0f0f0!important;border-color:#333!important}
       `}</style>
 
-      {scheduleData && <ScheduleModal caption={scheduleData.caption} watermarkedImage={scheduleData.image} rawImageUrl={scheduleData.rawImageUrl} onClose={()=>setScheduleData(null)} />}
+      {scheduleData && <ScheduleModal caption={scheduleData.caption} watermarkedImage={scheduleData.image} rawImageUrl={scheduleData.rawImageUrl} carouselImageUrls={scheduleData.carouselImageUrls} onClose={()=>setScheduleData(null)} />}
       {writingBlog && <BlogWriter blog={writingBlog} clientId={selectedClient.id} onClose={()=>setWritingBlog(null)} />}
 
       <div style={{ minHeight:"100vh", background:"#0a0a0a", color:"#f0f0f0", fontFamily:"'Helvetica Neue',Arial,sans-serif", display:"flex", flexDirection:"column" }}>
@@ -909,7 +966,7 @@ export default function CommandCenter() {
                               imageUrl={images[caption.number]}
                               imageLoading={(loadingImages && !images[caption.number] && !failedImages.has(caption.number)) || retryingImages.has(caption.number)}
                               imageFailed={failedImages.has(caption.number)}
-                              onSchedule={(cap, img, rawImg) => setScheduleData({ caption: cap, image: img, rawImageUrl: rawImg })}
+                              onSchedule={(cap, img, rawImg, carouselImgs) => setScheduleData({ caption: cap, image: img, rawImageUrl: rawImg, carouselImageUrls: carouselImgs })}
                               onRetryImage={(cap) => generateSingleImage(cap, true)}
                           onRenderNew={(cap) => generateSingleImage(cap, true, true)}
                               month={resultMeta?.month || month}
