@@ -604,36 +604,48 @@ export default function CommandCenter() {
   async function generateSingleImage(caption, isRetry = false, forceNew = false) {
     setRetryingImages(prev => new Set([...prev, caption.number]));
     setFailedImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
-    try {
+
+    const tryGenerate = async () => {
       const res = await fetch("/api/images", {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew }),
       });
       const data = await res.json();
-      if (data.success && data.imageUrl) {
-        setImages(prev => ({ ...prev, [caption.number]: data.imageUrl }));
-      } else {
-        throw new Error(data.error || "Failed");
-      }
-    } catch {
+      if (data.success && data.imageUrl) return data.imageUrl;
+      throw new Error(data.error || "Failed");
+    };
+
+    try {
+      let dalleUrl;
       try {
+        dalleUrl = await tryGenerate();
+      } catch {
         await new Promise(r => setTimeout(r, 2000));
-        const res = await fetch("/api/images", {
-          method:"POST",
-          headers:{ "Content-Type":"application/json" },
-          body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew }),
+        dalleUrl = await tryGenerate();
+      }
+
+      // Immediately upload to WordPress for a permanent URL
+      let permanentUrl = dalleUrl;
+      try {
+        const wpRes = await fetch("/api/upload-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageUrl: dalleUrl }),
         });
-        const data = await res.json();
-        if (data.success && data.imageUrl) {
-          setImages(prev => ({ ...prev, [caption.number]: data.imageUrl }));
-        } else {
-          setFailedImages(prev => new Set([...prev, caption.number]));
+        const wpData = await wpRes.json();
+        if (wpData.success && wpData.permanentUrl) {
+          permanentUrl = wpData.permanentUrl;
         }
       } catch {
-        setFailedImages(prev => new Set([...prev, caption.number]));
+        // Fall back to DALL-E URL if upload fails
       }
+
+      setImages(prev => ({ ...prev, [caption.number]: permanentUrl }));
+    } catch {
+      setFailedImages(prev => new Set([...prev, caption.number]));
     }
+
     setRetryingImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
   }
 
