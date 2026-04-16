@@ -263,24 +263,31 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
   const sourceImage = customImage || imageUrl;
 
   useEffect(() => {
-    // Reset watermark whenever imageUrl changes (new image generated)
-    if (imageUrl !== prevImageUrl) {
-      setPrevImageUrl(imageUrl);
-      setWatermarked(null);
-      setCustomImage(null);
-    }
+    // When imageUrl changes (new image or first load), reset and re-watermark
+    if (!imageUrl) return;
+    if (imageUrl === prevImageUrl && watermarked && !customImage) return;
+    setPrevImageUrl(imageUrl);
+    setWatermarked(null);
+    setCustomImage(null);
+    setWatermarking(true);
+    applyWatermark(imageUrl).then(result => {
+      if (result) {
+        setWatermarked(result);
+      }
+      setWatermarking(false);
+    });
   }, [imageUrl]);
 
   useEffect(() => {
-    if (sourceImage && !watermarking) {
-      setWatermarking(true);
-      setWatermarked(null);
-      applyWatermark(sourceImage).then(result => {
-        if (result) setWatermarked(result);
-        setWatermarking(false);
-      });
-    }
-  }, [sourceImage]);
+    // Handle custom uploaded images
+    if (!customImage) return;
+    setWatermarked(null);
+    setWatermarking(true);
+    applyWatermark(customImage).then(result => {
+      if (result) setWatermarked(result);
+      setWatermarking(false);
+    });
+  }, [customImage]);
 
   function handleReplaceImage(e) {
     const file = e.target.files?.[0];
