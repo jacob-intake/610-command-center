@@ -2,18 +2,25 @@ const BUFFER_API = "https://api.buffer.com";
 
 export default async function handler(req, res) {
   const token = process.env.BUFFER_ACCESS_TOKEN;
-  const orgId = process.env.BUFFER_ORG_ID;
-  if (!token || !orgId) return res.status(500).json({ error: "Missing credentials" });
+  if (!token) return res.status(500).json({ error: "Missing token" });
 
   const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
 
-  // Introspect CreatePostInput to see exact accepted fields
+  // Introspect PostInputMetaData to see Facebook-specific fields
   const introspectRes = await fetch(BUFFER_API, {
     method: "POST", headers,
     body: JSON.stringify({
       query: `
         query {
-          __type(name: "CreatePostInput") {
+          postInputMetaData: __type(name: "PostInputMetaData") {
+            name
+            inputFields {
+              name
+              type { name kind ofType { name kind } }
+              description
+            }
+          }
+          facebookMetaData: __type(name: "FacebookPostMetadataInput") {
             name
             inputFields {
               name
@@ -26,10 +33,6 @@ export default async function handler(req, res) {
     }),
   });
 
-  const introspectData = await introspectRes.json();
-
-  return res.status(200).json({
-    createPostInputFields: introspectData.data?.__type?.inputFields || [],
-    raw: introspectData,
-  });
+  const data = await introspectRes.json();
+  return res.status(200).json(data);
 }
