@@ -3,15 +3,10 @@ const BUFFER_API = "https://api.buffer.com";
 export default async function handler(req, res) {
   const token = process.env.BUFFER_ACCESS_TOKEN;
   const orgId = process.env.BUFFER_ORG_ID;
-
   if (!token || !orgId) return res.status(500).json({ error: "Missing credentials" });
 
-  const headers = {
-    "Content-Type": "application/json",
-    "Authorization": `Bearer ${token}`,
-  };
+  const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
 
-  // Step 1: Get channels
   const channelsRes = await fetch(BUFFER_API, {
     method: "POST", headers,
     body: JSON.stringify({
@@ -20,19 +15,17 @@ export default async function handler(req, res) {
   });
   const channelsData = await channelsRes.json();
   const fbChannel = channelsData.data?.channels?.find(c => c.service?.toLowerCase() === "facebook");
+  if (!fbChannel) return res.status(200).json({ error: "Facebook channel not found", channels: channelsData });
 
-  if (!fbChannel) {
-    return res.status(200).json({ error: "Facebook channel not found", channels: channelsData });
-  }
-
-  // Step 2: Try addToQueue - simplest possible post
+  // Test with mediaType: post which Facebook requires
   const testMutation = `
     mutation CreatePost {
       createPost(input: {
         channelId: "${fbChannel.id}",
-        text: "Test post from 610 Command Center",
+        text: "Test post from 610 Command Center - please delete",
         schedulingType: automatic,
-        mode: addToQueue
+        mode: addToQueue,
+        mediaType: post
       }) {
         ... on PostActionSuccess { post { id status dueAt } }
         ... on MutationError { message }
@@ -47,5 +40,6 @@ export default async function handler(req, res) {
     fbChannel,
     bufferHttpStatus: postRes.status,
     bufferResponse: postData,
+    success: !!postData.data?.createPost?.post,
   });
 }

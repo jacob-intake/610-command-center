@@ -58,10 +58,11 @@ export default async function handler(req, res) {
         assetsBlock = `, assets: { images: [{ url: ${JSON.stringify(imageUrl)} }] }`;
       }
 
-      // Facebook requires addToQueue mode; LinkedIn supports customScheduled
       const isFacebook = (channel.service || "").toLowerCase() === "facebook";
       const scheduleMode = isFacebook ? "addToQueue" : "customScheduled";
       const dueAtField = isFacebook ? "" : `dueAt: "${dueAt}",`;
+      // Facebook requires mediaType: post for standard image/text posts
+      const mediaTypeField = isFacebook ? "mediaType: post," : "";
 
       const mutation = `
         mutation CreatePost {
@@ -71,6 +72,7 @@ export default async function handler(req, res) {
             schedulingType: automatic,
             mode: ${scheduleMode},
             ${dueAtField}
+            ${mediaTypeField}
             ${assetsBlock}
           }) {
             ... on PostActionSuccess { post { id dueAt status } }
@@ -95,6 +97,7 @@ export default async function handler(req, res) {
                 schedulingType: automatic,
                 mode: ${scheduleMode},
                 ${dueAtField}
+                ${mediaTypeField}
               }) {
                 ... on PostActionSuccess { post { id dueAt status } }
                 ... on MutationError { message }
@@ -133,6 +136,16 @@ export default async function handler(req, res) {
     const failures = results.filter(r => !r.success);
     if (failures.length > 0) {
       console.error("Some channels failed:", JSON.stringify(failures));
+    }
+    // Include failure detail in success response for visibility
+    if (failures.length > 0) {
+      return res.status(200).json({
+        success: true,
+        message: `Scheduled for ${new Date(scheduledAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`,
+        platforms: successes.map(s => s.channel),
+        failures: failures.map(f => ({ channel: f.channel, error: f.error, raw: f.raw })),
+        results,
+      });
     }
 
     const withImage = successes.some(r => r.hasImage);
