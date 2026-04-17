@@ -58,14 +58,19 @@ export default async function handler(req, res) {
         assetsBlock = `, assets: { images: [{ url: ${JSON.stringify(imageUrl)} }] }`;
       }
 
+      // Facebook requires addToQueue mode; LinkedIn supports customScheduled
+      const isFacebook = (channel.service || "").toLowerCase() === "facebook";
+      const scheduleMode = isFacebook ? "addToQueue" : "customScheduled";
+      const dueAtField = isFacebook ? "" : `dueAt: "${dueAt}",`;
+
       const mutation = `
         mutation CreatePost {
           createPost(input: {
             channelId: "${channel.id}",
             text: ${JSON.stringify(text)},
             schedulingType: automatic,
-            mode: customScheduled,
-            dueAt: "${dueAt}"
+            mode: ${scheduleMode},
+            ${dueAtField}
             ${assetsBlock}
           }) {
             ... on PostActionSuccess { post { id dueAt status } }
@@ -88,8 +93,8 @@ export default async function handler(req, res) {
                 channelId: "${channel.id}",
                 text: ${JSON.stringify(text)},
                 schedulingType: automatic,
-                mode: customScheduled,
-                dueAt: "${dueAt}"
+                mode: ${scheduleMode},
+                ${dueAtField}
               }) {
                 ... on PostActionSuccess { post { id dueAt status } }
                 ... on MutationError { message }
