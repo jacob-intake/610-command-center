@@ -61,8 +61,8 @@ export default async function handler(req, res) {
       const isFacebook = (channel.service || "").toLowerCase() === "facebook";
       const scheduleMode = isFacebook ? "addToQueue" : "customScheduled";
       const dueAtField = isFacebook ? "" : `dueAt: "${dueAt}",`;
-      // Facebook requires mediaType: post for standard image/text posts
-      const mediaTypeField = isFacebook ? "mediaType: post," : "";
+      // Facebook requires metadata.facebook.type - it is NON_NULL in the schema
+      const metadataField = isFacebook ? `metadata: { facebook: { type: post } },` : "";
 
       const mutation = `
         mutation CreatePost {
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
             schedulingType: automatic,
             mode: ${scheduleMode},
             ${dueAtField}
-            ${mediaTypeField}
+            ${metadataField}
             ${assetsBlock}
           }) {
             ... on PostActionSuccess { post { id dueAt status } }
@@ -97,7 +97,7 @@ export default async function handler(req, res) {
                 schedulingType: automatic,
                 mode: ${scheduleMode},
                 ${dueAtField}
-                ${mediaTypeField}
+                ${metadataField}
               }) {
                 ... on PostActionSuccess { post { id dueAt status } }
                 ... on MutationError { message }
