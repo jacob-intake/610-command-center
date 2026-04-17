@@ -107,9 +107,11 @@ export default async function handler(req, res) {
           results.push({ channel: channel.name, success: false, error: errMsg });
         }
       } else if (postData.data?.createPost?.post) {
-        results.push({ channel: channel.name, success: true, hasImage: !!imageUrl });
+        results.push({ channel: channel.name, success: true, hasImage: !!imageUrl, postId: postData.data.createPost.post.id });
       } else {
-        results.push({ channel: channel.name, success: false, error: "Unexpected: " + JSON.stringify(postData).substring(0, 150) });
+        // Log full response for debugging
+        console.error(`Unexpected response for ${channel.name}:`, JSON.stringify(postData));
+        results.push({ channel: channel.name, success: false, error: "Unexpected response", raw: JSON.stringify(postData).substring(0, 400) });
       }
     }
 
@@ -118,7 +120,14 @@ export default async function handler(req, res) {
       return res.status(500).json({
         error: "Failed to schedule on any platform",
         details: results.map(r => `${r.channel}: ${r.error}`).join(". "),
+        results,
       });
+    }
+
+    // Even on partial success, include failures in response for visibility
+    const failures = results.filter(r => !r.success);
+    if (failures.length > 0) {
+      console.error("Some channels failed:", JSON.stringify(failures));
     }
 
     const withImage = successes.some(r => r.hasImage);
