@@ -7,39 +7,29 @@ export default async function handler(req, res) {
 
   const headers = { "Content-Type": "application/json", "Authorization": `Bearer ${token}` };
 
-  const channelsRes = await fetch(BUFFER_API, {
+  // Introspect CreatePostInput to see exact accepted fields
+  const introspectRes = await fetch(BUFFER_API, {
     method: "POST", headers,
     body: JSON.stringify({
-      query: `query { channels(input: { organizationId: "${orgId}" }) { id name service } }`,
+      query: `
+        query {
+          __type(name: "CreatePostInput") {
+            name
+            inputFields {
+              name
+              type { name kind ofType { name kind } }
+              description
+            }
+          }
+        }
+      `,
     }),
   });
-  const channelsData = await channelsRes.json();
-  const fbChannel = channelsData.data?.channels?.find(c => c.service?.toLowerCase() === "facebook");
-  if (!fbChannel) return res.status(200).json({ error: "Facebook channel not found", channels: channelsData });
 
-  // Test with mediaType: post which Facebook requires
-  const testMutation = `
-    mutation CreatePost {
-      createPost(input: {
-        channelId: "${fbChannel.id}",
-        text: "Test post from 610 Command Center - please delete",
-        schedulingType: automatic,
-        mode: addToQueue,
-        mediaType: post
-      }) {
-        ... on PostActionSuccess { post { id status dueAt } }
-        ... on MutationError { message }
-      }
-    }
-  `;
-
-  const postRes = await fetch(BUFFER_API, { method: "POST", headers, body: JSON.stringify({ query: testMutation }) });
-  const postData = await postRes.json();
+  const introspectData = await introspectRes.json();
 
   return res.status(200).json({
-    fbChannel,
-    bufferHttpStatus: postRes.status,
-    bufferResponse: postData,
-    success: !!postData.data?.createPost?.post,
+    createPostInputFields: introspectData.data?.__type?.inputFields || [],
+    raw: introspectData,
   });
 }
