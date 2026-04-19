@@ -15,7 +15,7 @@ const PLATFORM_METADATA = {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { text, imageUrl, imageUrls, scheduledAt, platforms } = req.body;
+  const { text, imageUrl, imageUrls, videoUrl, scheduledAt, platforms } = req.body;
 
   if (!text) return res.status(400).json({ error: "Caption text is required" });
   if (!scheduledAt) return res.status(400).json({ error: "Scheduled time is required" });
@@ -55,9 +55,11 @@ export default async function handler(req, res) {
     const results = [];
 
     for (const channel of selectedChannels) {
-      // Build assets block - supports single image or carousel (array of images)
+      // Build assets block - supports video, single image, or carousel
       let assetsBlock = "";
-      if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) {
+      if (videoUrl) {
+        assetsBlock = `, assets: { videos: [{ url: ${JSON.stringify(videoUrl)} }] }`;
+      } else if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) {
         const imgList = imageUrls.map(u => `{ url: ${JSON.stringify(u)} }`).join(", ");
         assetsBlock = `, assets: { images: [${imgList}] }`;
       } else if (imageUrl) {
@@ -69,7 +71,14 @@ export default async function handler(req, res) {
       const isInstagram = service === "instagram";
       const scheduleMode = (isFacebook || isInstagram) ? "addToQueue" : "customScheduled";
       const dueAtField = (isFacebook || isInstagram) ? "" : `dueAt: "${dueAt}",`;
-      const metadataField = PLATFORM_METADATA[service] || "";
+
+      // For video posts on Instagram use reel type, Facebook use post type
+      let metadataField = PLATFORM_METADATA[service] || "";
+      if (videoUrl && isInstagram) {
+        metadataField = 'metadata: { instagram: { type: reel, shouldShareToFeed: true } },';
+      } else if (videoUrl && isFacebook) {
+        metadataField = 'metadata: { facebook: { type: reel } },';
+      }
 
       const mutation = `
         mutation CreatePost {
