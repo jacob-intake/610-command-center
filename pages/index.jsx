@@ -589,7 +589,7 @@ function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUr
   now.setMinutes(now.getMinutes() + 30);
   const defaultDate = now.toISOString().slice(0, 16);
   const [scheduledAt, setScheduledAt] = useState(defaultDate);
-  const [platforms, setPlatforms] = useState({ facebook: true, linkedin: true });
+  const [platforms, setPlatforms] = useState({ facebook: true, linkedin: true, instagram: false });
   const [scheduling, setScheduling] = useState(false);
   const [scheduled, setScheduled] = useState(null);
   const [error, setError] = useState(null);
@@ -641,7 +641,7 @@ function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUr
             <div style={{ marginBottom:"24px" }}>
               <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", display:"block", marginBottom:"10px" }}>Post To</label>
               <div style={{ display:"flex", gap:"10px" }}>
-                {[["facebook","Facebook"],["linkedin","LinkedIn"]].map(([key,label]) => (
+                {[["facebook","Facebook"],["linkedin","LinkedIn"],["instagram","Instagram"]].map(([key,label]) => (
                   <button key={key} onClick={() => setPlatforms(p => ({...p,[key]:!p[key]}))} style={{ flex:1, padding:"10px", border:`1px solid ${platforms[key]?"#4a90d9":"#222"}`, background:platforms[key]?"#0a1628":"#161616", borderRadius:"3px", color:platforms[key]?"#4a90d9":"#444", fontSize:"12px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", fontWeight:platforms[key]?"700":"400", textTransform:"uppercase" }}>
                     {platforms[key]?"✓ ":""}{label}
                   </button>
