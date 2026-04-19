@@ -269,7 +269,10 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
   const [prevImageUrl, setPrevImageUrl] = useState(null);
   const [carouselImages, setCarouselImages] = useState([]);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [videoUrl, setVideoUrl] = useState(null);
+  const [videoUploading, setVideoUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const colors = TYPE_COLORS[caption.type] || TYPE_COLORS["Educational tip"];
   const sourceImage = customImage || imageUrl;
 
@@ -338,6 +341,37 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
     reader.readAsDataURL(file);
   }
 
+  async function handleVideoUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setVideoUploading(true);
+    try {
+      // Upload video to WordPress for permanent URL
+      const formData = new FormData();
+      formData.append("file", file);
+      const topicSlug = (primaryTopic || "content")
+        .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").substring(0, 50);
+      const filename = `${topicSlug}_610-marketing_digital-marketing-and-AI-consulting-agency-near-me_${caption.number}.mp4`;
+
+      const wpUrl = "/api/upload-video";
+      const res = await fetch(wpUrl, {
+        method: "POST",
+        body: formData,
+        headers: { "x-filename": filename },
+      });
+      const data = await res.json();
+      if (data.success && data.videoUrl) {
+        setVideoUrl(data.videoUrl);
+      } else {
+        // Fall back to object URL for preview only
+        setVideoUrl(URL.createObjectURL(file));
+      }
+    } catch {
+      setVideoUrl(URL.createObjectURL(file));
+    }
+    setVideoUploading(false);
+  }
+
   function handleDownloadImage() {
     const finalImage = watermarked || sourceImage;
     if (!finalImage) return;
@@ -396,13 +430,20 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
         )}
         <input ref={fileInputRef} type="file" accept="image/*" onChange={handleReplaceImage} style={{ display:"none" }} />
         <div style={{ position:"absolute", top:"8px", right:"8px", display:"flex", gap:"4px" }}>
-          <button onClick={() => onRenderNew && onRenderNew(caption)} style={{ background:"rgba(0,0,0,0.75)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#4a90d9", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
+          {!videoUrl && <button onClick={() => onRenderNew && onRenderNew(caption)} style={{ background:"rgba(0,0,0,0.75)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#4a90d9", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
             New Image
-          </button>
-          <button onClick={() => fileInputRef.current?.click()} style={{ background:"rgba(0,0,0,0.75)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#ccc", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
+          </button>}
+          {!videoUrl && <button onClick={() => fileInputRef.current?.click()} style={{ background:"rgba(0,0,0,0.75)", border:"1px solid rgba(255,255,255,0.2)", borderRadius:"3px", color:"#ccc", fontSize:"10px", padding:"4px 8px", cursor:"pointer", fontFamily:"'Helvetice Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
             Replace
+          </button>}
+          <button onClick={() => videoUrl ? setVideoUrl(null) : videoInputRef.current?.click()} disabled={videoUploading} style={{ background:"rgba(0,0,0,0.75)", border:`1px solid ${videoUrl?"rgba(212,74,74,0.6)":"rgba(74,208,160,0.4)"}`, borderRadius:"3px", color:videoUrl?"#d94a4a":"#4ad9a0", fontSize:"10px", padding:"4px 8px", cursor:videoUploading?"not-allowed":"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.5px", textTransform:"uppercase" }}>
+            {videoUploading ? "Uploading..." : videoUrl ? "Remove Video" : "Add Video"}
           </button>
+          <input ref={videoInputRef} type="file" accept="video/mp4,video/mov,video/quicktime" onChange={handleVideoUpload} style={{ display:"none" }} />
         </div>
+        {videoUrl && (
+          <video src={videoUrl} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} muted loop autoPlay playsInline />
+        )}
       </div>
 
       <div style={{ padding:"14px", flex:1 }}>
@@ -424,7 +465,7 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
         <button onClick={() => { navigator.clipboard.writeText(caption.text); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={btnStyle("#161616","#2a2a2a","#888")}>{copied?"Copied":"Copy"}</button>
         <button onClick={() => downloadText(`610-caption-${caption.number}.txt`, `610 Marketing & PR\n${month} - ${primaryTopic}\nType: ${caption.type}\n\n${caption.text}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download Text</button>
         {displayImage && <button onClick={handleDownloadImage} style={btnStyle("#161616","#2a2a2a","#888")}>Save Image</button>}
-        <button onClick={() => onSchedule(caption, watermarked || sourceImage, imageUrl, caption.isCarousel ? carouselImages : null)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
+        <button onClick={() => onSchedule(caption, watermarked || sourceImage, imageUrl, caption.isCarousel ? carouselImages : null, videoUrl)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
       </div>
     </div>
   );
@@ -584,7 +625,7 @@ function BlogWriter({ blog, clientId, onClose }) {
   );
 }
 
-function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUrls, onClose }) {
+function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUrls, videoUrl, onClose }) {
   const now = new Date();
   now.setMinutes(now.getMinutes() + 30);
   const defaultDate = now.toISOString().slice(0, 16);
@@ -601,7 +642,7 @@ function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUr
     try {
       const res = await fetch("/api/buffer", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ text: caption.text, imageUrl: rawImageUrl || null, imageUrls: carouselImageUrls || null, scheduledAt: new Date(scheduledAt).toISOString(), platforms: selectedPlatforms }),
+        body: JSON.stringify({ text: caption.text, imageUrl: rawImageUrl || null, imageUrls: carouselImageUrls || null, videoUrl: videoUrl || null, scheduledAt: new Date(scheduledAt).toISOString(), platforms: selectedPlatforms }),
       });
       const data = await res.json();
       if (data.success) setScheduled(data);
@@ -626,7 +667,14 @@ function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUr
           </div>
         ) : (
           <>
-            {watermarkedImage && (
+            {videoUrl ? (
+              <div style={{ marginBottom:"20px", borderRadius:"4px", overflow:"hidden", position:"relative", paddingBottom:"56.25%", background:"#0a0a0a" }}>
+                <video src={videoUrl} style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} muted loop autoPlay playsInline />
+                <div style={{ position:"absolute", bottom:"8px", left:"8px", background:"rgba(0,0,0,0.7)", padding:"3px 8px", borderRadius:"2px" }}>
+                  <span style={{ fontSize:"10px", color:"#4ad9a0", fontFamily:"monospace", textTransform:"uppercase" }}>Video</span>
+                </div>
+              </div>
+            ) : watermarkedImage && (
               <div style={{ marginBottom:"20px", borderRadius:"4px", overflow:"hidden", position:"relative", paddingBottom:"56.25%", background:"#0a0a0a" }}>
                 <img src={watermarkedImage} alt="Post preview" style={{ position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"cover" }} />
               </div>
@@ -1079,7 +1127,7 @@ export default function CommandCenter() {
         .nav-btn:hover{color:#f0f0f0!important;border-color:#333!important}
       `}</style>
 
-      {scheduleData && <ScheduleModal caption={scheduleData.caption} watermarkedImage={scheduleData.image} rawImageUrl={scheduleData.rawImageUrl} carouselImageUrls={scheduleData.carouselImageUrls} onClose={()=>setScheduleData(null)} />}
+      {scheduleData && <ScheduleModal caption={scheduleData.caption} watermarkedImage={scheduleData.image} rawImageUrl={scheduleData.rawImageUrl} carouselImageUrls={scheduleData.carouselImageUrls} videoUrl={scheduleData.videoUrl} onClose={()=>setScheduleData(null)} />}
       {writingBlog && <BlogWriter blog={writingBlog} clientId={selectedClient.id} onClose={()=>setWritingBlog(null)} />}
 
       <div style={{ minHeight:"100vh", background:"#0a0a0a", color:"#f0f0f0", fontFamily:"'Helvetica Neue',Arial,sans-serif", display:"flex", flexDirection:"column" }}>
@@ -1263,7 +1311,7 @@ export default function CommandCenter() {
                               imageUrl={images[caption.number]}
                               imageLoading={(loadingImages && !images[caption.number] && !failedImages.has(caption.number)) || retryingImages.has(caption.number)}
                               imageFailed={failedImages.has(caption.number)}
-                              onSchedule={(cap, img, rawImg, carouselImgs) => setScheduleData({ caption: cap, image: img, rawImageUrl: rawImg, carouselImageUrls: carouselImgs })}
+                              onSchedule={(cap, img, rawImg, carouselImgs, vidUrl) => setScheduleData({ caption: cap, image: img, rawImageUrl: rawImg, carouselImageUrls: carouselImgs, videoUrl: vidUrl })}
                               onRetryImage={(cap) => generateSingleImage(cap, true)}
                           onRenderNew={(cap) => generateSingleImage(cap, true, true)}
                               month={resultMeta?.month || month}
