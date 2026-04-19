@@ -1,9 +1,22 @@
 async function getGoogleAccessToken() {
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const rawKey = process.env.GOOGLE_PRIVATE_KEY;
+
   if (!email || !rawKey) throw new Error("Google credentials not configured");
 
-  let privateKey = rawKey.replace(/\\n/g, "\n").replace(/^["']|["']$/g, "").trim();
+  // Normalize the private key - handle all Vercel storage formats
+  let privateKey = rawKey;
+  // Replace escaped newlines with real newlines
+  privateKey = privateKey.replace(/\\n/g, "\n");
+  // Remove any surrounding quotes that might have been included
+  privateKey = privateKey.replace(/^["']|["']$/g, "");
+  privateKey = privateKey.trim();
+  // Force correct PEM structure - ensure newline after header and before footer
+  privateKey = privateKey
+    .replace("-----BEGIN PRIVATE KEY-----", "-----BEGIN PRIVATE KEY-----\n")
+    .replace("-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
+    .replace(/\n\n/g, "\n");
+  // Break the base64 body into 64-char lines if it is one long string
   const pemLines = privateKey.split("\n");
   const pemHeader = pemLines[0];
   const pemFooter = pemLines[pemLines.length - 1];
@@ -23,19 +36,30 @@ async function getGoogleAccessToken() {
   };
 
   const header = { alg: "RS256", typ: "JWT" };
+
   function base64url(str) {
     return Buffer.from(str).toString("base64")
       .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
   }
 
-  const signingInput = `${base64url(JSON.stringify(header))}.${base64url(JSON.stringify(payload))}`;
+  const headerB64 = base64url(JSON.stringify(header));
+  const payloadB64 = base64url(JSON.stringify(payload));
+  const signingInput = `${headerB64}.${payloadB64}`;
+
   const { createSign } = await import("crypto");
-  const sign = createSign("RSA-SHA256");
-  sign.update(signingInput);
-  const signature = sign.sign({ key: privateKey, format: "pem" }, "base64")
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+
+  let signature;
+  try {
+    const sign = createSign("RSA-SHA256");
+    sign.update(signingInput);
+    signature = sign.sign({ key: privateKey, format: "pem" }, "base64")
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  } catch (keyErr) {
+    throw new Error(`Private key error: ${keyErr.message}. Key starts with: ${privateKey.substring(0, 50)}`);
+  }
 
   const jwt = `${signingInput}.${signature}`;
+
   const tokenRes = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -49,6 +73,7 @@ async function getGoogleAccessToken() {
   if (!tokenData.access_token) throw new Error(`Token error: ${JSON.stringify(tokenData)}`);
   return tokenData.access_token;
 }
+
 
 async function createGmbPost(accessToken, locationName, postData) {
   const res = await fetch(
