@@ -7,6 +7,14 @@ const CLIENTS = [
   { id: "610-marketing", name: "610 Marketing & PR", location: "San Diego, CA" },
 ];
 
+const GMB_LOCATIONS_610 = [
+  { id: "san-diego", city: "San Diego", state: "CA", locationName: null },
+  { id: "houston", city: "Houston", state: "TX", locationName: null },
+  { id: "mcallen", city: "McAllen", state: "TX", locationName: null },
+  { id: "austin", city: "Austin", state: "TX", locationName: null },
+  { id: "stafford", city: "Stafford", state: "VA", locationName: null },
+];
+
 const TYPE_COLORS = {
   "Educational tip":    { bg: "#0a1628", border: "#1a3a6b", label: "#4a90d9" },
   "Thought leadership": { bg: "#0f0a1a", border: "#3a1a6b", label: "#9b6bd9" },
@@ -333,8 +341,14 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
   function handleDownloadImage() {
     const finalImage = watermarked || sourceImage;
     if (!finalImage) return;
+    const topicSlug = (primaryTopic || "content")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .substring(0, 50);
+    const seoFilename = `${topicSlug}_610-marketing_digital-marketing-and-AI-consulting-agency-near-me_${caption.number}.jpg`;
     const a = document.createElement("a");
-    a.href = finalImage; a.download = `610-post-${caption.number}.jpg`; a.click();
+    a.href = finalImage; a.download = seoFilename; a.click();
   }
 
   const displayImage = watermarked || sourceImage;
@@ -461,6 +475,8 @@ function BlogWriter({ blog, clientId, onClose }) {
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState(null);
   const [error, setError] = useState(null);
+  const [featuredImage, setFeaturedImage] = useState(null);
+  const [generatingImage, setGeneratingImage] = useState(false);
 
   useEffect(() => { writeBlog(); }, []);
 
@@ -478,12 +494,26 @@ function BlogWriter({ blog, clientId, onClose }) {
     setWriting(false);
   }
 
+  async function generateBlogImage() {
+    setGeneratingImage(true); setError(null);
+    try {
+      const res = await fetch("/api/blog-image", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ blogTitle: blog.title, primaryTopic: blog.title, clientId, blogNumber: blog.number }),
+      });
+      const data = await res.json();
+      if (data.success) setFeaturedImage(data);
+      else setError(data.error || "Image generation failed.");
+    } catch (err) { setError(err.message); }
+    setGeneratingImage(false);
+  }
+
   async function publishToWordPress() {
     setPublishing(true); setError(null);
     try {
       const res = await fetch("/api/wordpress", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ title: blog.title, content, clientId }),
+        body: JSON.stringify({ title: blog.title, content, clientId, featuredMediaId: featuredImage?.mediaId || null }),
       });
       const data = await res.json();
       if (data.success) setPublished(data);
@@ -519,6 +549,15 @@ function BlogWriter({ blog, clientId, onClose }) {
               <a href={published.editUrl} target="_blank" rel="noreferrer" style={{ fontSize:"13px", color:"#4a90d9", fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>Open in WordPress Editor</a>
             </div>
           )}
+
+          {featuredImage && (
+            <div style={{ marginBottom:"20px", borderRadius:"4px", overflow:"hidden", position:"relative", background:"#0a0a0a" }}>
+              <img src={featuredImage.permanentUrl || featuredImage.imageUrl} alt="Featured" style={{ width:"100%", height:"auto", display:"block", borderRadius:"4px" }} />
+              <div style={{ position:"absolute", bottom:"10px", left:"10px", background:"rgba(0,0,0,0.7)", padding:"4px 10px", borderRadius:"3px" }}>
+                <span style={{ fontSize:"10px", color:"#4ad9a0", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px" }}>Featured Image Ready</span>
+              </div>
+            </div>
+          )}
           {content && !writing && (
             <div style={{ fontFamily:"'Helvetica Neue',Arial,sans-serif", fontSize:"14px", color:"#ccc", lineHeight:"1.9", whiteSpace:"pre-wrap" }}>{content}</div>
           )}
@@ -529,6 +568,11 @@ function BlogWriter({ blog, clientId, onClose }) {
             <div style={{ marginLeft:"auto", display:"flex", gap:"8px" }}>
               <button onClick={() => navigator.clipboard.writeText(content)} style={btnStyle("#161616","#2a2a2a","#888")}>Copy</button>
               <button onClick={() => downloadText(`610-blog-${blog.number}.txt`, `${blog.title}\n\n${content}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download</button>
+              {!featuredImage && (
+                <button onClick={generateBlogImage} disabled={generatingImage} style={{ ...btnStyle(generatingImage?"#161616":"#0a1628", generatingImage?"#2a2a2a":"#1a3a6b", generatingImage?"#333":"#4a90d9"), padding:"8px 16px" }}>
+                  {generatingImage ? "Generating..." : "Generate Featured Image"}
+                </button>
+              )}
               <button onClick={publishToWordPress} disabled={publishing||!!published} style={{ ...btnStyle(published?"#0a1a0a":publishing?"#161616":"#fff", published?"#1a5a1a":publishing?"#2a2a2a":"#fff", published?"#4ad9a0":publishing?"#333":"#000"), fontWeight:"700", padding:"8px 20px" }}>
                 {published?"Published":publishing?"Publishing...":"Push to WordPress"}
               </button>
@@ -618,6 +662,247 @@ function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUr
   );
 }
 
+function GmbPanel() {
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [postText, setPostText] = useState("");
+  const [ctaType, setCtaType] = useState("LEARN_MORE");
+  const [ctaUrl, setCtaUrl] = useState("https://610marketing.com");
+  const [posting, setPosting] = useState(false);
+  const [postResult, setPostResult] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [processingReviews, setProcessingReviews] = useState(false);
+  const [processResult, setProcessResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [activeSection, setActiveSection] = useState("posts");
+  const [pendingApprovals, setPendingApprovals] = useState([]);
+
+  const needsSetup = GMB_LOCATIONS_610.every(l => !l.locationName);
+
+  async function handleCreatePost() {
+    if (!selectedLocation || !postText.trim()) return;
+    setPosting(true); setError(null); setPostResult(null);
+    try {
+      const res = await fetch("/api/gmb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "createPost",
+          locationName: selectedLocation.locationName,
+          post: { text: postText, ctaType, ctaUrl },
+        }),
+      });
+      const data = await res.json();
+      if (data.success) { setPostResult(data); setPostText(""); }
+      else setError(data.error || "Post failed.");
+    } catch (err) { setError(err.message); }
+    setPosting(false);
+  }
+
+  async function handleLoadReviews() {
+    if (!selectedLocation) return;
+    setLoadingReviews(true); setError(null);
+    try {
+      const res = await fetch("/api/gmb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "getReviews", locationName: selectedLocation.locationName }),
+      });
+      const data = await res.json();
+      if (data.success) setReviews(data.reviews || []);
+      else setError(data.error || "Failed to load reviews.");
+    } catch (err) { setError(err.message); }
+    setLoadingReviews(false);
+  }
+
+  async function handleProcessReviews() {
+    if (!selectedLocation) return;
+    setProcessingReviews(true); setError(null); setProcessResult(null);
+    try {
+      const res = await fetch("/api/gmb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "processReviews",
+          locationName: selectedLocation.locationName,
+          locationCity: `${selectedLocation.city}, ${selectedLocation.state}`,
+          autoReply: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProcessResult(data);
+        setPendingApprovals(data.processed.filter(p => p.needsApproval));
+      } else setError(data.error || "Processing failed.");
+    } catch (err) { setError(err.message); }
+    setProcessingReviews(false);
+  }
+
+  async function handleApproveReply(item) {
+    try {
+      await fetch("/api/gmb", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "replyToReview", reviewName: item.reviewName, comment: item.response }),
+      });
+      setPendingApprovals(prev => prev.filter(p => p.reviewName !== item.reviewName));
+    } catch (err) { setError(err.message); }
+  }
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:"20px" }}>
+      <div style={{ background:"#0d0d0d", border:"1px solid #1a1a1a", borderRadius:"4px", padding:"28px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"12px", paddingBottom:"16px", borderBottom:"1px solid #161616", marginBottom:"20px" }}>
+          <span style={{ fontSize:"10px", color:"#333", fontFamily:"monospace", border:"1px solid #222", padding:"3px 7px", borderRadius:"2px" }}>04</span>
+          <h2 style={{ fontSize:"15px", fontWeight:"600", color:"#e0e0e0" }}>Google Business Profile</h2>
+        </div>
+
+        {needsSetup ? (
+          <div style={{ background:"#0a1628", border:"1px solid #1a3a6b", borderRadius:"4px", padding:"20px" }}>
+            <p style={{ fontSize:"12px", color:"#4a90d9", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", margin:"0 0 10px 0", fontWeight:"600" }}>Setup Required</p>
+            <p style={{ fontSize:"13px", color:"#888", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", margin:"0 0 16px 0" }}>
+              To connect your Google Business Profile locations, visit this URL to discover your location IDs, then add them to the system.
+            </p>
+            <a href="/api/gmb-locations" target="_blank" rel="noreferrer" style={{ fontSize:"12px", color:"#4a90d9", fontFamily:"monospace", textDecoration:"none", border:"1px solid #1a3a6b", padding:"6px 14px", borderRadius:"3px", display:"inline-block" }}>
+              View My GMB Location IDs
+            </a>
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom:"20px" }}>
+              <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", display:"block", marginBottom:"10px" }}>Select Location</label>
+              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                {GMB_LOCATIONS_610.filter(l => l.locationName).map(loc => (
+                  <button key={loc.id} onClick={() => setSelectedLocation(loc)} style={{ padding:"8px 16px", background:selectedLocation?.id===loc.id?"#1a3a6b":"#161616", border:`1px solid ${selectedLocation?.id===loc.id?"#4a90d9":"#222"}`, borderRadius:"3px", color:selectedLocation?.id===loc.id?"#4a90d9":"#555", fontSize:"12px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>
+                    {loc.city}, {loc.state}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display:"flex", borderBottom:"1px solid #1a1a1a", marginBottom:"20px" }}>
+              {[["posts","GMB Posts"],["reviews","Review Management"]].map(([id,label]) => (
+                <button key={id} onClick={() => setActiveSection(id)} style={{ padding:"10px 22px", background:"transparent", border:"none", borderBottom:`2px solid ${activeSection===id?"#fff":"transparent"}`, color:activeSection===id?"#f0f0f0":"#444", fontSize:"13px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", marginBottom:"-1px" }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {activeSection === "posts" && selectedLocation && (
+              <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+                <div>
+                  <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", display:"block", marginBottom:"8px" }}>Post Text</label>
+                  <textarea value={postText} onChange={e => setPostText(e.target.value)} rows={5} placeholder={`Write a Google Business post for ${selectedLocation.city}...`} style={{ width:"100%", padding:"12px 14px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:"#f0f0f0", fontSize:"13px", fontFamily:"'Helvetica Neue',Arial,sans-serif", resize:"vertical", lineHeight:"1.6", boxSizing:"border-box" }} />
+                  <p style={{ fontSize:"11px", color:"#333", margin:"4px 0 0 0", fontFamily:"monospace" }}>{postText.length}/1500 characters</p>
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+                  <div>
+                    <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", display:"block", marginBottom:"8px" }}>Call to Action</label>
+                    <select value={ctaType} onChange={e => setCtaType(e.target.value)} style={{ width:"100%", padding:"10px 12px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:"#f0f0f0", fontSize:"13px", fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>
+                      <option value="LEARN_MORE">Learn More</option>
+                      <option value="CALL">Call Now</option>
+                      <option value="BOOK">Book</option>
+                      <option value="ORDER">Order Online</option>
+                      <option value="SHOP">Shop</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", display:"block", marginBottom:"8px" }}>CTA URL</label>
+                    <input value={ctaUrl} onChange={e => setCtaUrl(e.target.value)} style={{ width:"100%", padding:"10px 12px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:"#f0f0f0", fontSize:"13px", fontFamily:"'Helvetica Neue',Arial,sans-serif" }} />
+                  </div>
+                </div>
+
+                {error && <div style={{ background:"#110808", border:"1px solid #c0392b", borderRadius:"3px", padding:"12px", fontSize:"12px", color:"#c0392b" }}>{error}</div>}
+                {postResult && <div style={{ background:"#0a1a0a", border:"1px solid #1a5a1a", borderRadius:"3px", padding:"12px", fontSize:"12px", color:"#4ad9a0" }}>Post published to {selectedLocation.city} Google Business Profile.</div>}
+
+                <button onClick={handleCreatePost} disabled={posting || !postText.trim()} style={{ padding:"13px", background:(!postText.trim()||posting)?"#161616":"#fff", color:(!postText.trim()||posting)?"#2a2a2a":"#000", border:"none", borderRadius:"3px", fontSize:"13px", fontWeight:"700", cursor:(!postText.trim()||posting)?"not-allowed":"pointer", textTransform:"uppercase", letterSpacing:"1px" }}>
+                  {posting ? "Publishing..." : `Publish to ${selectedLocation.city} GMB`}
+                </button>
+              </div>
+            )}
+
+            {activeSection === "reviews" && selectedLocation && (
+              <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+                <div style={{ background:"#080808", border:"1px solid #141414", borderRadius:"3px", padding:"16px" }}>
+                  <p style={{ fontSize:"11px", color:"#4a90d9", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", margin:"0 0 8px 0", fontWeight:"600" }}>Automated Review Management</p>
+                  <p style={{ fontSize:"12px", color:"#555", lineHeight:"1.6", margin:"0 0 12px 0" }}>
+                    Automatically generates and posts AI responses to 3-5 star reviews. Queues 1-2 star reviews for your approval before posting.
+                  </p>
+                  <button onClick={handleProcessReviews} disabled={processingReviews} style={{ padding:"10px 20px", background:processingReviews?"#161616":"#0a1628", border:`1px solid ${processingReviews?"#222":"#1a3a6b"}`, borderRadius:"3px", color:processingReviews?"#333":"#4a90d9", fontSize:"12px", fontWeight:"700", cursor:processingReviews?"not-allowed":"pointer", textTransform:"uppercase", letterSpacing:"0.5px" }}>
+                    {processingReviews ? "Processing..." : `Process Unanswered Reviews - ${selectedLocation.city}`}
+                  </button>
+                </div>
+
+                {processResult && (
+                  <div style={{ background:"#0a1a0a", border:"1px solid #1a5a1a", borderRadius:"3px", padding:"14px" }}>
+                    <p style={{ fontSize:"12px", color:"#4ad9a0", fontFamily:"monospace", margin:"0 0 8px 0" }}>Processed {processResult.total} unanswered review{processResult.total !== 1 ? "s" : ""}.</p>
+                    <p style={{ fontSize:"12px", color:"#555", margin:0 }}>{processResult.processed?.filter(p => p.autoPosted).length || 0} auto-replied. {pendingApprovals.length} need your approval below.</p>
+                  </div>
+                )}
+
+                {pendingApprovals.length > 0 && (
+                  <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
+                    <p style={{ fontSize:"11px", color:"#d9a84a", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", margin:0, fontWeight:"600" }}>Pending Approval ({pendingApprovals.length})</p>
+                    {pendingApprovals.map((item, i) => (
+                      <div key={i} style={{ background:"#1a0a0a", border:"1px solid #5a2a2a", borderRadius:"4px", padding:"16px" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"10px" }}>
+                          <span style={{ fontSize:"11px", color:"#d94a4a", fontFamily:"monospace" }}>{"★".repeat(item.stars)}{"☆".repeat(5-item.stars)}</span>
+                          <span style={{ fontSize:"10px", color:"#555", fontFamily:"monospace" }}>Low rating - requires approval</span>
+                        </div>
+                        <p style={{ fontSize:"13px", color:"#ccc", lineHeight:"1.6", margin:"0 0 12px 0", background:"#0a0a0a", padding:"10px", borderRadius:"3px" }}>{item.response}</p>
+                        <div style={{ display:"flex", gap:"8px" }}>
+                          <button onClick={() => handleApproveReply(item)} style={{ padding:"8px 16px", background:"#0a1628", border:"1px solid #1a3a6b", borderRadius:"3px", color:"#4a90d9", fontSize:"12px", cursor:"pointer", fontWeight:"700" }}>Approve and Post</button>
+                          <button onClick={() => setPendingApprovals(prev => prev.filter(p => p.reviewName !== item.reviewName))} style={{ padding:"8px 16px", background:"#161616", border:"1px solid #222", borderRadius:"3px", color:"#555", fontSize:"12px", cursor:"pointer" }}>Dismiss</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ borderTop:"1px solid #161616", paddingTop:"16px" }}>
+                  <button onClick={handleLoadReviews} disabled={loadingReviews} style={{ padding:"8px 16px", background:"#161616", border:"1px solid #222", borderRadius:"3px", color:"#555", fontSize:"12px", cursor:loadingReviews?"not-allowed":"pointer" }}>
+                    {loadingReviews ? "Loading..." : "View Recent Reviews"}
+                  </button>
+
+                  {reviews.length > 0 && (
+                    <div style={{ marginTop:"16px", display:"flex", flexDirection:"column", gap:"10px" }}>
+                      {reviews.slice(0, 5).map((review, i) => {
+                        const stars = { ONE:1, TWO:2, THREE:3, FOUR:4, FIVE:5 }[review.starRating] || 0;
+                        return (
+                          <div key={i} style={{ background:"#080808", border:"1px solid #141414", borderRadius:"3px", padding:"14px" }}>
+                            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"8px" }}>
+                              <span style={{ fontSize:"13px", color:"#ccc", fontWeight:"600" }}>{review.reviewer?.displayName || "Anonymous"}</span>
+                              <span style={{ fontSize:"12px", color: stars >= 4 ? "#4ad9a0" : stars >= 3 ? "#d9a84a" : "#d94a4a" }}>{"★".repeat(stars)}{"☆".repeat(5-stars)}</span>
+                            </div>
+                            {review.comment && <p style={{ fontSize:"12px", color:"#666", lineHeight:"1.6", margin:"0 0 8px 0" }}>{review.comment}</p>}
+                            {review.reviewReply ? (
+                              <div style={{ background:"#0a0a0a", border:"1px solid #1a1a1a", borderRadius:"2px", padding:"8px 10px" }}>
+                                <p style={{ fontSize:"10px", color:"#333", fontFamily:"monospace", margin:"0 0 4px 0" }}>YOUR REPLY</p>
+                                <p style={{ fontSize:"12px", color:"#555", margin:0 }}>{review.reviewReply.comment}</p>
+                              </div>
+                            ) : (
+                              <span style={{ fontSize:"10px", color:"#d9a84a", fontFamily:"monospace" }}>Unanswered</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!selectedLocation && (
+              <p style={{ fontSize:"13px", color:"#333", textAlign:"center", padding:"40px" }}>Select a location above to manage GMB posts and reviews.</p>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CommandCenter() {
   const [password, setPassword] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
@@ -682,13 +967,13 @@ export default function CommandCenter() {
         dalleUrl = await tryGenerate();
       }
 
-      // Immediately upload to WordPress for a permanent URL
+      // Immediately upload to WordPress for a permanent SEO-named URL
       let permanentUrl = dalleUrl;
       try {
         const wpRes = await fetch("/api/upload-image", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageUrl: dalleUrl }),
+          body: JSON.stringify({ imageUrl: dalleUrl, primaryTopic, clientId: selectedClient.id, number: caption.number }),
         });
         const wpData = await wpRes.json();
         if (wpData.success && wpData.permanentUrl) {
@@ -803,7 +1088,7 @@ export default function CommandCenter() {
             <LogoHeader />
             <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
               <div style={{ display:"flex", gap:"4px" }}>
-                {[["content","Content Generator"],["trending","Trending Topics"]].map(([id,label]) => (
+                {[["content","Content Generator"],["trending","Trending Topics"],["gmb","Google Business"]].map(([id,label]) => (
                   <button key={id} className="nav-btn" onClick={()=>setMainTab(id)} style={{ padding:"6px 14px", background:mainTab===id?"#1a1a1a":"transparent", border:`1px solid ${mainTab===id?"#333":"transparent"}`, borderRadius:"3px", color:mainTab===id?"#f0f0f0":"#555", fontSize:"12px", cursor:"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", letterSpacing:"0.3px", transition:"all 0.15s" }}>
                     {label}
                   </button>
@@ -828,6 +1113,18 @@ export default function CommandCenter() {
               </div>
               <div style={{ maxWidth:"800px" }}>
                 <TrendingTopicsPanel onUseTopic={handleUseTopic} />
+              </div>
+            </>
+          )}
+
+          {mainTab === "gmb" && (
+            <>
+              <div style={{ marginBottom:"32px" }}>
+                <h1 style={{ fontSize:"24px", fontWeight:"700", letterSpacing:"-0.5px", marginBottom:"6px" }}>Google Business Profile</h1>
+                <p style={{ fontSize:"13px", color:"#444" }}>Manage GMB posts and automated review responses across all 610 Marketing locations.</p>
+              </div>
+              <div style={{ maxWidth:"800px" }}>
+                <GmbPanel />
               </div>
             </>
           )}
