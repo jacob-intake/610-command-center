@@ -518,6 +518,10 @@ function BlogWriter({ blog, clientId, onClose }) {
   const [error, setError] = useState(null);
   const [featuredImage, setFeaturedImage] = useState(null);
   const [generatingImage, setGeneratingImage] = useState(false);
+  const [linkedInSchedule, setLinkedInSchedule] = useState(null);
+  const [showLinkedInScheduler, setShowLinkedInScheduler] = useState(false);
+  const [publishingLive, setPublishingLive] = useState(false);
+  const [publishedLive, setPublishedLive] = useState(null);
 
   useEffect(() => { writeBlog(); }, []);
 
@@ -549,18 +553,53 @@ function BlogWriter({ blog, clientId, onClose }) {
     setGeneratingImage(false);
   }
 
-  async function publishToWordPress() {
+  async function publishToWordPress(publishLive = false) {
     setPublishing(true); setError(null);
     try {
       const res = await fetch("/api/wordpress", {
         method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ title: blog.title, content, clientId, featuredMediaId: featuredImage?.mediaId || null }),
+        body: JSON.stringify({ title: blog.title, content, clientId, featuredMediaId: featuredImage?.mediaId || null, publishLive }),
       });
       const data = await res.json();
-      if (data.success) setPublished(data);
-      else setError(data.error || "WordPress publish failed.");
+      if (data.success) {
+        setPublished(data);
+        return data;
+      } else {
+        setError(data.error || "WordPress publish failed.");
+        return null;
+      }
+    } catch (err) { setError(err.message); return null; }
+    finally { setPublishing(false); }
+  }
+
+  async function publishWithLinkedIn() {
+    setPublishingLive(true); setError(null);
+    try {
+      // Step 1: Publish WordPress blog live
+      const wpData = await publishToWordPress(true);
+      if (!wpData) { setPublishingLive(false); return; }
+
+      // Step 2: Schedule LinkedIn post
+      const scheduledAt = linkedInSchedule || null;
+      const liRes = await fetch("/api/linkedin-blog-post", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          blogTitle: blog.title,
+          blogContent: content,
+          blogUrl: wpData.postUrl,
+          scheduledAt,
+          primaryTopic: blog.title,
+        }),
+      });
+      const liData = await liRes.json();
+      if (liData.success) {
+        setPublishedLive({ wp: wpData, linkedin: liData });
+      } else {
+        setError(`WordPress published but LinkedIn failed: ${liData.error}`);
+      }
     } catch (err) { setError(err.message); }
-    setPublishing(false);
+    setPublishingLive(false);
   }
 
   const wordCount = content.split(/\s+/).filter(Boolean).length;
@@ -584,10 +623,33 @@ function BlogWriter({ blog, clientId, onClose }) {
             </div>
           )}
           {error && <div style={{ background:"#110808", border:"1px solid #c0392b", borderRadius:"3px", padding:"16px", color:"#c0392b", fontSize:"13px", lineHeight:"1.5" }}>{error}</div>}
-          {published && (
+          {publishedLive && (
             <div style={{ background:"#0a1a0a", border:"1px solid #1a5a1a", borderRadius:"4px", padding:"16px", marginBottom:"20px" }}>
-              <p style={{ fontSize:"12px", color:"#4ad9a0", fontFamily:"'Helvetica Neue',Arial,sans-serif", fontWeight:"700", textTransform:"uppercase", letterSpacing:"1px", margin:"0 0 8px 0" }}>Published to WordPress as Draft</p>
+              <p style={{ fontSize:"12px", color:"#4ad9a0", fontFamily:"'Helvetica Neue',Arial,sans-serif", fontWeight:"700", textTransform:"uppercase", letterSpacing:"1px", margin:"0 0 8px 0" }}>Published Live</p>
+              <a href={publishedLive.wp.postUrl} target="_blank" rel="noreferrer" style={{ fontSize:"13px", color:"#4a90d9", display:"block", marginBottom:"4px" }}>View WordPress Post</a>
+              <p style={{ fontSize:"12px", color:"#4ad9a0", margin:0 }}>{publishedLive.linkedin.message}</p>
+            </div>
+          )}
+
+          {published && !publishedLive && (
+            <div style={{ background:"#0a1a0a", border:"1px solid #1a5a1a", borderRadius:"4px", padding:"16px", marginBottom:"20px" }}>
+              <p style={{ fontSize:"12px", color:"#4ad9a0", fontFamily:"'Helvetica Neue',Arial,sans-serif", fontWeight:"700", textTransform:"uppercase", letterSpacing:"1px", margin:"0 0 8px 0" }}>Saved to WordPress as Draft</p>
               <a href={published.editUrl} target="_blank" rel="noreferrer" style={{ fontSize:"13px", color:"#4a90d9", fontFamily:"'Helvetica Neue',Arial,sans-serif" }}>Open in WordPress Editor</a>
+            </div>
+          )}
+
+          {showLinkedInScheduler && !publishedLive && (
+            <div style={{ background:"#0a1628", border:"1px solid #1a3a6b", borderRadius:"4px", padding:"16px", marginBottom:"20px" }}>
+              <p style={{ fontSize:"11px", color:"#4a90d9", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", margin:"0 0 10px 0", fontWeight:"600" }}>Schedule LinkedIn Post</p>
+              <p style={{ fontSize:"12px", color:"#555", marginBottom:"12px", lineHeight:"1.6" }}>WordPress will publish live and a LinkedIn post with a teaser and link will be scheduled for the time you choose.</p>
+              <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", display:"block", marginBottom:"8px" }}>Post Date and Time</label>
+              <input type="datetime-local" min={new Date().toISOString().slice(0,16)} onChange={e => setLinkedInSchedule(e.target.value)} style={{ width:"100%", padding:"10px 12px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:"#f0f0f0", fontSize:"13px", marginBottom:"12px", boxSizing:"border-box" }} />
+              <div style={{ display:"flex", gap:"8px" }}>
+                <button onClick={publishWithLinkedIn} disabled={publishingLive || !linkedInSchedule} style={{ flex:1, padding:"10px", background:(!linkedInSchedule||publishingLive)?"#161616":"#4a90d9", color:(!linkedInSchedule||publishingLive)?"#333":"#fff", border:"none", borderRadius:"3px", fontSize:"12px", fontWeight:"700", cursor:(!linkedInSchedule||publishingLive)?"not-allowed":"pointer", textTransform:"uppercase" }}>
+                  {publishingLive ? "Publishing..." : "Publish and Schedule"}
+                </button>
+                <button onClick={() => setShowLinkedInScheduler(false)} style={{ padding:"10px 16px", background:"#161616", border:"1px solid #222", borderRadius:"3px", color:"#555", fontSize:"12px", cursor:"pointer" }}>Cancel</button>
+              </div>
             </div>
           )}
 
@@ -614,8 +676,13 @@ function BlogWriter({ blog, clientId, onClose }) {
                   {generatingImage ? "Generating..." : "Generate Featured Image"}
                 </button>
               )}
-              <button onClick={publishToWordPress} disabled={publishing||!!published} style={{ ...btnStyle(published?"#0a1a0a":publishing?"#161616":"#fff", published?"#1a5a1a":publishing?"#2a2a2a":"#fff", published?"#4ad9a0":publishing?"#333":"#000"), fontWeight:"700", padding:"8px 20px" }}>
-                {published?"Published":publishing?"Publishing...":"Push to WordPress"}
+              {!publishedLive && !showLinkedInScheduler && (
+                <button onClick={() => setShowLinkedInScheduler(true)} disabled={!!published} style={{ ...btnStyle("#0a1628","#1a3a6b","#4a90d9"), padding:"8px 16px", fontWeight:"700" }}>
+                  Publish + LinkedIn
+                </button>
+              )}
+              <button onClick={() => publishToWordPress(false)} disabled={publishing||!!published||!!publishedLive} style={{ ...btnStyle((published||publishedLive)?"#0a1a0a":publishing?"#161616":"#fff", (published||publishedLive)?"#1a5a1a":publishing?"#2a2a2a":"#fff", (published||publishedLive)?"#4ad9a0":publishing?"#333":"#000"), fontWeight:"700", padding:"8px 20px" }}>
+                {published?"Saved as Draft":publishing?"Saving...":"Save as Draft"}
               </button>
             </div>
           </div>
