@@ -1034,6 +1034,25 @@ export default function CommandCenter() {
   const [generating, setGenerating] = useState(false);
   const [currentBatch, setCurrentBatch] = useState(-1);
   const [batchesComplete, setBatchesComplete] = useState(0);
+  const [inspiration, setInspiration] = useState({
+    energy: "",
+    visualStyle: "",
+    audienceFocus: "",
+    contentTone: "",
+    colorMood: "",
+    extraNotes: "",
+    referenceImages: [],
+  });
+  const [energy, setEnergy] = useState("");
+  const [visualStyle, setVisualStyle] = useState("");
+  const [audienceFocus, setAudienceFocus] = useState("");
+  const [contentTone, setContentTone] = useState("");
+  const [colorMood, setColorMood] = useState("");
+  const [inspirationNotes, setInspirationNotes] = useState("");
+  const [inspirationImages, setInspirationImages] = useState([]);
+  const [analyzingInspiration, setAnalyzingInspiration] = useState(false);
+  const [inspirationAnalysis, setInspirationAnalysis] = useState("");
+  const inspirationInputRef = useRef(null);
   const [loadingImages, setLoadingImages] = useState(false);
   const [imagesProgress, setImagesProgress] = useState(0);
 
@@ -1066,7 +1085,7 @@ export default function CommandCenter() {
       const res = await fetch("/api/images", {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew }),
+        body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew, inspirationContext: buildInspirationContext() }),
       });
       const data = await res.json();
       if (data.success && data.imageUrl) return data.imageUrl;
@@ -1106,6 +1125,53 @@ export default function CommandCenter() {
     setRetryingImages(prev => { const n = new Set(prev); n.delete(caption.number); return n; });
   }
 
+  function buildInspirationContext() {
+    const parts = [];
+    if (energy) parts.push(`Energy: ${energy}`);
+    if (visualStyle) parts.push(`Visual Style: ${visualStyle}`);
+    if (audienceFocus) parts.push(`Audience Focus: ${audienceFocus}`);
+    if (contentTone) parts.push(`Content Tone: ${contentTone}`);
+    if (colorMood) parts.push(`Color Mood: ${colorMood}`);
+    if (inspirationNotes) parts.push(`Additional Direction: ${inspirationNotes}`);
+    if (inspirationAnalysis) parts.push(`Visual Inspiration Analysis: ${inspirationAnalysis}`);
+    return parts.length > 0 ? `
+
+CREATIVE DIRECTION FOR THIS MONTH:
+${parts.join("
+")}` : "";
+  }
+
+  async function handleInspirationUpload(e) {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    setAnalyzingInspiration(true);
+
+    const imageDataUrls = await Promise.all(files.slice(0, 5).map(file =>
+      new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = ev => resolve(ev.target.result);
+        reader.readAsDataURL(file);
+      })
+    ));
+
+    setInspirationImages(prev => [...prev, ...imageDataUrls].slice(0, 5));
+
+    // Analyze images via server endpoint
+    try {
+      const res = await fetch("/api/analyze-inspiration", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ images: imageDataUrls }),
+      });
+      const data = await res.json();
+      if (data.success && data.analysis) {
+        setInspirationAnalysis(prev => prev ? `${prev} ${data.analysis}` : data.analysis);
+      }
+    } catch { /* skip analysis if it fails */ }
+
+    setAnalyzingInspiration(false);
+  }
+
   async function generateImagesSequentially(captionList) {
     setLoadingImages(true); setImagesProgress(0); setFailedImages(new Set());
     for (let i = 0; i < captionList.length; i++) {
@@ -1122,7 +1188,8 @@ export default function CommandCenter() {
     setImagesProgress(0); setBatchesComplete(0); setResultMeta(null);
     setActiveTab("captions");
 
-    const params = { primaryTopic, secondaryTopic, contentNotes, month, clientId: selectedClient.id };
+    const inspirationContext = buildInspirationContext();
+    const params = { primaryTopic, secondaryTopic, contentNotes: (contentNotes || "") + inspirationContext, month, clientId: selectedClient.id };
     let allCaptions = [];
     let allBlogs = [];
 
@@ -1272,6 +1339,61 @@ export default function CommandCenter() {
                   <div style={{ display:"flex", flexDirection:"column", gap:"7px" }}>
                     <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", fontWeight:"500" }}>Content Notes</label>
                     <textarea value={contentNotes} onChange={e=>setContentNotes(e.target.value)} rows={4} placeholder="Special instructions, themes, topics to avoid..." style={{ width:"100%", padding:"11px 14px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:"#f0f0f0", fontSize:"13px", fontFamily:"'Helvetica Neue',Arial,sans-serif", resize:"vertical", lineHeight:"1.6" }} />
+                  </div>
+
+                  <div style={{ borderTop:"1px solid #1a1a1a", paddingTop:"18px", display:"flex", flexDirection:"column", gap:"14px" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                      <span style={{ fontSize:"10px", color:"#4a90d9", fontFamily:"monospace", border:"1px solid #1a3a6b", padding:"2px 7px", borderRadius:"2px", textTransform:"uppercase", letterSpacing:"0.5px" }}>Creative Direction</span>
+                    </div>
+
+                    {[
+                      { label:"Energy", value:energy, setter:setEnergy, options:["High","Chill","Professional","Funny","Inspirational","Urgent"] },
+                      { label:"Visual Style", value:visualStyle, setter:setVisualStyle, options:["Cinematic","Editorial","Minimal","Bold","Warm and Lifestyle","Dark and Moody","Bright and Airy"] },
+                      { label:"Audience Focus", value:audienceFocus, setter:setAudienceFocus, options:["Small Business Owners","Executives","General Consumers","Local Community","Tech Savvy","Non-Technical"] },
+                      { label:"Content Tone", value:contentTone, setter:setContentTone, options:["Direct and Punchy","Educational","Conversational","Thought Provoking","Story-Driven"] },
+                      { label:"Color Mood", value:colorMood, setter:setColorMood, options:["Navy and White (610 Default)","Warm Earth Tones","Black and Minimal","Vibrant and Bold","Soft Neutrals"] },
+                    ].map(({ label, value, setter, options }) => (
+                      <div key={label} style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                        <label style={{ fontSize:"10px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", fontWeight:"500" }}>{label}</label>
+                        <select value={value} onChange={e => setter(e.target.value)} style={{ width:"100%", padding:"9px 12px", background:"#161616", border:`1px solid ${value?"#2a3a6b":"#272727"}`, borderRadius:"3px", color:value?"#f0f0f0":"#444", fontSize:"12px", fontFamily:"'Helvetica Neue',Arial,sans-serif", cursor:"pointer" }}>
+                          <option value="">— Select {label} —</option>
+                          {options.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    ))}
+
+                    <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                      <label style={{ fontSize:"10px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", fontWeight:"500" }}>Anything else this month?</label>
+                      <textarea value={inspirationNotes} onChange={e => setInspirationNotes(e.target.value)} rows={2} placeholder="e.g. less corporate, more human, avoid stock photo feel..." style={{ width:"100%", padding:"9px 12px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:"#f0f0f0", fontSize:"12px", fontFamily:"'Helvetica Neue',Arial,sans-serif", resize:"none", lineHeight:"1.5" }} />
+                    </div>
+
+                    <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+                      <label style={{ fontSize:"10px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", fontWeight:"500" }}>Visual Inspiration (up to 5 images)</label>
+                      <input ref={inspirationInputRef} type="file" accept="image/*" multiple onChange={handleInspirationUpload} style={{ display:"none" }} />
+
+                      {inspirationImages.length > 0 && (
+                        <div style={{ display:"flex", gap:"6px", flexWrap:"wrap" }}>
+                          {inspirationImages.map((img, i) => (
+                            <div key={i} style={{ position:"relative", width:"52px", height:"52px", borderRadius:"3px", overflow:"hidden", border:"1px solid #2a2a2a" }}>
+                              <img src={img} alt={`Inspiration ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                              <button onClick={() => setInspirationImages(prev => prev.filter((_, idx) => idx !== i))} style={{ position:"absolute", top:"2px", right:"2px", background:"rgba(0,0,0,0.8)", border:"none", color:"#fff", fontSize:"9px", borderRadius:"2px", cursor:"pointer", padding:"1px 4px", lineHeight:1 }}>x</button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <button onClick={() => inspirationInputRef.current?.click()} disabled={analyzingInspiration || inspirationImages.length >= 5} style={{ padding:"8px 14px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:inspirationImages.length >= 5?"#2a2a2a":"#555", fontSize:"11px", cursor:inspirationImages.length >= 5?"not-allowed":"pointer", fontFamily:"'Helvetica Neue',Arial,sans-serif", textTransform:"uppercase", letterSpacing:"0.5px", textAlign:"left" }}>
+                        {analyzingInspiration ? "Analyzing images..." : inspirationImages.length >= 5 ? "Maximum 5 images" : "+ Upload Reference Images"}
+                      </button>
+
+                      {inspirationAnalysis && (
+                        <div style={{ background:"#080808", border:"1px solid #1a3a6b", borderRadius:"3px", padding:"10px 12px" }}>
+                          <p style={{ fontSize:"10px", color:"#4a90d9", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", margin:"0 0 6px 0" }}>Visual Analysis</p>
+                          <p style={{ fontSize:"11px", color:"#666", lineHeight:"1.6", margin:0 }}>{inspirationAnalysis}</p>
+                          <button onClick={() => { setInspirationAnalysis(""); setInspirationImages([]); }} style={{ fontSize:"10px", color:"#333", background:"none", border:"none", cursor:"pointer", marginTop:"6px", fontFamily:"monospace", textDecoration:"underline" }}>Clear</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <button className="gen-btn" onClick={handleGenerate} disabled={generating||!primaryTopic.trim()} style={{ width:"100%", padding:"13px", background:(generating||!primaryTopic.trim())?"#161616":"#fff", color:(generating||!primaryTopic.trim())?"#2a2a2a":"#000", border:"none", borderRadius:"3px", fontSize:"13px", fontWeight:"700", cursor:(generating||!primaryTopic.trim())?"not-allowed":"pointer", letterSpacing:"1px", textTransform:"uppercase", transition:"background 0.15s" }}>
