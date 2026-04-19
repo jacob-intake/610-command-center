@@ -5,7 +5,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { title, content, clientId, featuredMediaId } = req.body;
+  const { title, content, clientId, featuredMediaId, publishLive } = req.body;
 
   if (!title || !content) return res.status(400).json({ error: "Title and content are required" });
 
@@ -28,7 +28,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         title,
         content,
-        status: "draft",
+        status: publishLive ? "publish" : "draft",
         ...(featuredMediaId && { featured_media: featuredMediaId }),
       }),
     });
