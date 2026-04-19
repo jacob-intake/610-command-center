@@ -6,6 +6,12 @@ const CHANNEL_MAP = {
   instagram: ["instagram"],
 };
 
+const PLATFORM_METADATA = {
+  facebook: 'metadata: { facebook: { type: post } },',
+  instagram: 'metadata: { instagram: { type: post, shouldShareToFeed: true } },',
+  linkedin: '',
+};
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
@@ -58,11 +64,12 @@ export default async function handler(req, res) {
         assetsBlock = `, assets: { images: [{ url: ${JSON.stringify(imageUrl)} }] }`;
       }
 
-      const isFacebook = (channel.service || "").toLowerCase() === "facebook";
-      const scheduleMode = isFacebook ? "addToQueue" : "customScheduled";
-      const dueAtField = isFacebook ? "" : `dueAt: "${dueAt}",`;
-      // Facebook requires metadata.facebook.type - it is NON_NULL in the schema
-      const metadataField = isFacebook ? `metadata: { facebook: { type: post } },` : "";
+      const service = (channel.service || "").toLowerCase();
+      const isFacebook = service === "facebook";
+      const isInstagram = service === "instagram";
+      const scheduleMode = (isFacebook || isInstagram) ? "addToQueue" : "customScheduled";
+      const dueAtField = (isFacebook || isInstagram) ? "" : `dueAt: "${dueAt}",`;
+      const metadataField = PLATFORM_METADATA[service] || "";
 
       const mutation = `
         mutation CreatePost {
