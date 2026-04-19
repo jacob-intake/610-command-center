@@ -1134,11 +1134,7 @@ export default function CommandCenter() {
     if (colorMood) parts.push(`Color Mood: ${colorMood}`);
     if (inspirationNotes) parts.push(`Additional Direction: ${inspirationNotes}`);
     if (inspirationAnalysis) parts.push(`Visual Inspiration Analysis: ${inspirationAnalysis}`);
-    return parts.length > 0 ? `
-
-CREATIVE DIRECTION FOR THIS MONTH:
-${parts.join("
-")}` : "";
+    return parts.length > 0 ? "\n\nCREATIVE DIRECTION FOR THIS MONTH:\n" + parts.join("\n") : "";
   }
 
   async function handleInspirationUpload(e) {
