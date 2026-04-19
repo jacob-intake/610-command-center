@@ -1,7 +1,7 @@
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
-  const { imageUrl } = req.body;
+  const { imageUrl, primaryTopic, clientId, number } = req.body;
   if (!imageUrl) return res.status(400).json({ error: "imageUrl required" });
 
   const wpUrl = process.env.WORDPRESS_URL;
@@ -20,7 +20,14 @@ export default async function handler(req, res) {
 
     const imgBuffer = await imgRes.arrayBuffer();
     const credentials = Buffer.from(`${wpUser}:${wpPass}`).toString("base64");
-    const filename = `610-social-${Date.now()}.jpg`;
+    // SEO-optimized filename
+    const topicSlug = (primaryTopic || "content")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .substring(0, 50);
+    const num = number || Date.now();
+    const filename = `${topicSlug}_610-marketing_digital-marketing-and-AI-consulting-agency-near-me_${num}.jpg`;
 
     const uploadRes = await fetch(`${wpUrl}/wp-json/wp/v2/media`, {
       method: "POST",
