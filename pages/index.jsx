@@ -729,7 +729,9 @@ function ScheduleModal({ caption, watermarkedImage, rawImageUrl, carouselImageUr
           <div style={{ textAlign:"center", padding:"20px 0" }}>
             <div style={{ fontSize:"40px", marginBottom:"16px", color:"#4ad9a0" }}>✓</div>
             <p style={{ fontSize:"16px", fontWeight:"600", color:"#f0f0f0", fontFamily:"'Helvetica Neue',Arial,sans-serif", margin:"0 0 8px 0" }}>Post Scheduled</p>
-            <p style={{ fontSize:"13px", color:"#888", fontFamily:"'Helvetica Neue',Arial,sans-serif", margin:"0 0 24px 0" }}>{scheduled.message}</p>
+            <p style={{ fontSize:"13px", color:"#888", fontFamily:"'Helvetica Neue',Arial,sans-serif", margin:"0 0 24px 0" }}>
+              Scheduled for {new Date(scheduledAt).toLocaleString(undefined, { weekday:"short", month:"short", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit", timeZoneName:"short" })}
+            </p>
             <button onClick={onClose} style={{ ...btnStyle("#fff","#fff","#000"), padding:"10px 32px", fontWeight:"700" }}>Done</button>
           </div>
         ) : (
@@ -1027,6 +1029,7 @@ export default function CommandCenter() {
   const [selectedClient, setSelectedClient] = useState(CLIENTS[0]);
   const [mainTab, setMainTab] = useState("content");
   const [month, setMonth] = useState(currentMonth);
+  const [serviceLocation, setServiceLocation] = useState("San Diego, CA");
   const [primaryTopic, setPrimaryTopic] = useState("");
   const [secondaryTopic, setSecondaryTopic] = useState("");
   const [contentNotes, setContentNotes] = useState("");
@@ -1085,7 +1088,7 @@ export default function CommandCenter() {
       const res = await fetch("/api/images", {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew, inspirationContext: buildInspirationContext() }),
+        body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew, inspirationContext: buildInspirationContext(), serviceLocation }),
       });
       const data = await res.json();
       if (data.success && data.imageUrl) return data.imageUrl;
@@ -1185,7 +1188,7 @@ export default function CommandCenter() {
     setActiveTab("captions");
 
     const inspirationContext = buildInspirationContext();
-    const params = { primaryTopic, secondaryTopic, contentNotes: (contentNotes || "") + inspirationContext, month, clientId: selectedClient.id };
+    const params = { primaryTopic, secondaryTopic, contentNotes: (contentNotes || "") + inspirationContext, month, clientId: selectedClient.id, serviceLocation };
     let allCaptions = [];
     let allBlogs = [];
 
@@ -1319,6 +1322,18 @@ export default function CommandCenter() {
                   <div style={{ display:"flex", alignItems:"center", gap:"12px", paddingBottom:"16px", borderBottom:"1px solid #161616" }}>
                     <span style={{ fontSize:"10px", color:"#333", fontFamily:"monospace", border:"1px solid #222", padding:"3px 7px", borderRadius:"2px" }}>01</span>
                     <h2 style={{ fontSize:"15px", fontWeight:"600", color:"#e0e0e0" }}>Content Brief</h2>
+                  </div>
+
+                  <div style={{ display:"flex", flexDirection:"column", gap:"7px" }}>
+                    <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", fontWeight:"500" }}>Service Location</label>
+                    <select value={serviceLocation} onChange={e => setServiceLocation(e.target.value)} style={{ width:"100%", padding:"11px 14px", background:"#161616", border:"1px solid #272727", borderRadius:"3px", color:"#f0f0f0", fontSize:"13px", fontFamily:"'Helvetica Neue',Arial,sans-serif", cursor:"pointer" }}>
+                      <option value="San Diego, CA">San Diego, CA</option>
+                      <option value="Houston, TX">Houston, TX</option>
+                      <option value="McAllen, TX">McAllen, TX</option>
+                      <option value="Austin, TX">Austin, TX</option>
+                      <option value="Stafford, VA">Stafford, VA</option>
+                      <option value="National">National (No specific city)</option>
+                    </select>
                   </div>
 
                   {[
