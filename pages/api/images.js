@@ -1,39 +1,12 @@
 import { getClient } from "../../lib/clients";
 
-const UNIQUE_CONCEPTS = [
-  "a business professional in a tailored navy suit standing confidently by floor-to-ceiling windows with a city skyline at dusk behind them, shallow depth of field",
-  "close-up of weathered hands resting on a polished oak desk with a leather notebook and pen, warm window light from the left, bokeh background",
-  "a small team of three professionals in animated conversation around a glass conference table, candid moment, natural overhead light",
-  "aerial perspective looking straight down at a spotless minimalist desk with a laptop, espresso cup, and small succulent plant, cool morning light",
-  "a confident woman in her 40s behind the counter of a clean modern retail boutique, warm interior lighting, slight smile, direct eye contact",
-  "late afternoon sunlight streaming through venetian blinds casting stripes across a tidy home office desk with a MacBook and notepad",
-  "two professionals in a relaxed side-by-side posture looking at a laptop screen together in a bright co-working space, candid and natural",
-  "exterior street-level shot of a clean modern San Diego storefront with palm trees reflected in the glass window, golden hour",
-  "close macro shot of a stylus touching a tablet screen showing clean data visualization, very shallow depth of field, dark background",
-  "a man in his early 30s standing at a whiteboard covered in clean marker diagrams, sleeves rolled up, relaxed and focused",
-  "downtown San Diego waterfront at magic hour, warm orange and pink sky reflecting off the bay, one business professional silhouette in foreground",
-  "overhead flat lay of a dark marble desk surface with a journal, reading glasses, wireless earbuds, and a coffee mug casting a long shadow",
-  "a woman reviewing documents at a kitchen island with morning light flooding through large windows, casual professional attire",
-  "close-up portrait of a business owner in their 50s with silver hair, looking thoughtfully off camera, soft natural window light, shallow focus",
-  "empty modern boardroom at night with the city glowing through glass walls, long exposure light trails from traffic below",
-  "person's hands cupping a ceramic mug with steam rising, laptop open in the soft-focus background, warm cozy light",
-  "two entrepreneurs doing a professional handshake outside a glass office building, slightly backlit by afternoon sun, candid moment",
-  "close-up of a laptop keyboard with one finger pressing a key, very shallow focus, soft blue ambient light from the screen",
-  "a diverse group of four colleagues walking down a bright modern office hallway, mid-stride, candid photojournalism style",
-  "rooftop terrace of a modern San Diego office building, one person on a call with panoramic city view behind them, late afternoon",
-  "clean product shot style: a smartphone face-up on a matte concrete surface with soft directional light, minimal composition",
-  "a graphic designer leaning back in an ergonomic chair studying a large monitor showing clean design work, rim-lit from behind",
-  "macro close-up of a pen writing the word STRATEGY on a white legal pad, warm desk lamp light, paper texture visible",
-  "professional woman in smart casual attire walking purposefully through a sun-drenched modern lobby, motion blur on background",
-  "interior of a stylish San Diego coffee shop with one person working on a laptop, warm ambient light, brick walls, green plants",
-];
-
 const TYPE_MOODS = {
-  "Educational tip": "approachable, informative, clean and professional. Warm neutral tones.",
-  "Thought leadership": "authoritative, cinematic, slightly dramatic. Deep shadows and strong directional light.",
-  "AI and automation": "modern, precise, slightly cool-toned. Clean lines and technology present but not overwhelming.",
-  "San Diego local": "warm California light, coastal or urban San Diego setting, vibrant and sunny.",
-  "610 services": "collaborative, results-oriented, polished. Professional but not stiff.",
+  "Educational tip": "approachable and informative. Warm, professional light. The scene should feel like learning something useful.",
+  "Thought leadership": "authoritative and cinematic. Strong directional light, deep shadows. Confident and forward-thinking.",
+  "AI and automation": "modern and precise. Cool blue tones, clean lines, technology present but not overwhelming. Futuristic but grounded.",
+  "San Diego local": "warm California sunshine, coastal or urban San Diego energy. Vibrant and local.",
+  "610 services": "collaborative and results-driven. Professional but approachable. Marketing agency energy.",
+  "Explanatory": "clear and educational. Clean composition, good light. Feels like a tutorial or explainer.",
 };
 
 export default async function handler(req, res) {
@@ -41,22 +14,81 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { caption, primaryTopic, clientId, forceNew } = req.body;
+  const { caption, primaryTopic, clientId, forceNew, inspirationContext, serviceLocation } = req.body;
   if (!caption) return res.status(400).json({ error: "Caption is required" });
 
   const client = getClient(clientId || "610-marketing");
   if (!client) return res.status(400).json({ error: "Invalid client" });
 
-  // forceNew rotates to a different concept on re-render
-  const baseIndex = (caption.number - 1) % UNIQUE_CONCEPTS.length;
-  const offset = forceNew ? Math.floor(Math.random() * UNIQUE_CONCEPTS.length) : 0;
-  const conceptIndex = (baseIndex + offset) % UNIQUE_CONCEPTS.length;
-  const concept = UNIQUE_CONCEPTS[conceptIndex];
-  const mood = TYPE_MOODS[caption.type] || "professional, clean, modern business photography.";
+  const captionType = caption.type || "Educational tip";
+  let typeMood = TYPE_MOODS[captionType] || "professional business photography, clean and modern.";
+  // Override local post mood with actual selected location
+  if (captionType.includes("local") || captionType === "San Diego local") {
+    const city = (serviceLocation || "San Diego, CA").split(",")[0];
+    typeMood = `warm ${city} city energy. Local ${city} landmarks, streets, or authentic local settings. Vibrant and community-focused.`;
+  }
 
-  const prompt = `Commercial editorial photography for a premium marketing agency. ${concept}. Mood: ${mood} Shot on a Sony A7R IV with a 50mm f/1.4 Zeiss lens. Shallow depth of field. No text anywhere in the image. No logos. No watermarks. No signs with words. No overlaid graphics. Absolutely no text of any kind. The image must look exactly like a photograph taken by a professional commercial photographer, not generated by AI. High dynamic range. Sharp subject, creamy bokeh background. Square crop optimized for social media.`;
+  // Parse inspiration settings if provided
+  let inspirationDirective = "";
+  if (inspirationContext && inspirationContext.trim()) {
+    inspirationDirective = `\n\nCREATIVE DIRECTION FROM CLIENT:\n${inspirationContext.trim()}`;
+  }
+
+  // Step 1: Ask Claude to generate a unique visual concept for this specific caption
+  const conceptPrompt = `You are a creative director briefing a commercial photographer for a social media post.
+
+The post caption is: "${caption.text.substring(0, 200)}"
+Post type: ${caption.type}
+Monthly topic: ${primaryTopic}
+Service location: ${serviceLocation || "San Diego, CA"}
+Post number in batch: ${caption.number}
+Mood required: ${typeMood}${inspirationDirective}
+
+Generate ONE specific, unique photographic scene for this post. It must be completely different from a generic business stock photo.
+
+Rules:
+- Be hyper-specific. Name the exact subject, setting, lighting, angle, and mood.
+- The scene must directly relate to the caption topic: "${primaryTopic}"
+- No office clichés unless truly relevant and described with specificity
+- No people pointing at screens, no generic handshakes, no generic laptops
+- Think like a high-end editorial photographer choosing a scene
+- The scene must feel fresh and distinct from posts ${Math.max(1, caption.number - 3)} through ${caption.number - 1} in this batch
+- ${forceNew ? "Make this COMPLETELY different from any typical business photo. Be unexpected." : ""}
+
+Return ONLY a single sentence describing the exact photographic scene. Nothing else. No preamble.`;
 
   try {
+    const conceptRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-opus-4-5",
+        max_tokens: 150,
+        messages: [{ role: "user", content: conceptPrompt }],
+      }),
+    });
+
+    const conceptData = await conceptRes.json();
+    const visualConcept = conceptData.content?.[0]?.text?.trim() || `A professional business scene related to ${primaryTopic}`;
+
+    // Step 2: Build the DALL-E prompt from the dynamic concept
+    const dallePrompt = `Commercial editorial photography. ${visualConcept}
+
+Technical specs: Sony A7R IV, 50mm f/1.4 lens, shallow depth of field, professional lighting. ${typeMood}
+
+Critical requirements:
+- Must look exactly like a real photograph taken by a professional commercial photographer
+- Absolutely NO text, words, numbers, signs, or readable content anywhere in the image
+- No logos, watermarks, or branded elements
+- No AI-generated artifacts or uncanny valley elements
+- High dynamic range, sharp subject, creamy bokeh background
+- Square 1:1 composition optimized for social media
+- Color grade should feel premium and editorial`;
+
     const response = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -65,7 +97,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: "dall-e-3",
-        prompt,
+        prompt: dallePrompt,
         n: 1,
         size: "1024x1024",
         quality: "hd",
@@ -80,6 +112,7 @@ export default async function handler(req, res) {
         success: true,
         imageUrl: data.data[0].url,
         number: caption.number,
+        concept: visualConcept,
       });
     } else {
       return res.status(200).json({

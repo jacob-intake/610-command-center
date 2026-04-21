@@ -33,8 +33,8 @@ const CAPTION_TYPES = [
   // Batch 3 (posts 16-20)
   [
     { type: "Educational tip",   carousel: true  }, // carousel #4
-    { type: "San Diego local",   carousel: false },
-    { type: "San Diego local",   carousel: false },
+    { type: `${locationLabel || "San Diego"} local`,   carousel: false },
+    { type: `${locationLabel || "San Diego"} local`,   carousel: false },
     { type: "Explanatory",       carousel: false },
     { type: "610 services",      carousel: false },
   ],
@@ -62,7 +62,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { primaryTopic, secondaryTopic, contentNotes, month, batch, clientId } = req.body;
+  const { primaryTopic, secondaryTopic, contentNotes, month, batch, clientId, serviceLocation } = req.body;
 
   if (!primaryTopic) return res.status(400).json({ error: "Primary topic is required" });
   if (batch === undefined || batch === null) return res.status(400).json({ error: "Batch number is required" });
@@ -70,9 +70,11 @@ export default async function handler(req, res) {
   const client = getClient(clientId || "610-marketing");
   if (!client) return res.status(400).json({ error: "Invalid client" });
 
+  const locationLabel = serviceLocation && serviceLocation !== "National" ? serviceLocation : null;
   const context = `Month: ${month}
 Primary Topic: ${primaryTopic}
 Secondary Topic: ${secondaryTopic || "None"}
+Service Location: ${serviceLocation || "San Diego, CA"}
 Special Instructions: ${contentNotes || "None"}`;
 
   let prompt = "";
