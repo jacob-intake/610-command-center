@@ -1,12 +1,19 @@
 import { getClient } from "../../lib/clients";
 
-const TYPE_MOODS = {
-  "Educational tip": "approachable and informative. Warm, professional light. The scene should feel like learning something useful.",
-  "Thought leadership": "authoritative and cinematic. Strong directional light, deep shadows. Confident and forward-thinking.",
-  "AI and automation": "modern and precise. Cool blue tones, clean lines, technology present but not overwhelming. Futuristic but grounded.",
-  "San Diego local": "warm California sunshine, coastal or urban San Diego energy. Vibrant and local.",
-  "610 services": "collaborative and results-driven. Professional but approachable. Marketing agency energy.",
-  "Explanatory": "clear and educational. Clean composition, good light. Feels like a tutorial or explainer.",
+const TYPE_STYLES = {
+  "Educational tip": "warm professional office environment, approachable and informative mood, shallow depth of field, natural window light",
+  "Thought leadership": "cinematic dramatic lighting, strong shadows, authoritative composition, editorial magazine style",
+  "AI and automation": "modern tech workspace, cool blue ambient light, clean minimal surfaces, futuristic but grounded",
+  "Explanatory": "clean bright workspace, clear educational mood, organized and professional, good natural light",
+  "610 services": "collaborative agency environment, results-driven energy, modern professional setting",
+};
+
+const TYPE_SUBJECTS = {
+  "Educational tip": ["business professional reviewing work at a clean desk", "person in focused concentration with laptop and coffee", "two colleagues in a candid discussion over documents", "hands writing notes in a leather journal on a dark desk", "professional standing confidently by large windows with city view"],
+  "Thought leadership": ["confident executive in deep thought by floor-to-ceiling windows at dusk", "lone professional silhouetted against glowing city skyline", "close portrait of a silver-haired business leader looking off camera", "person standing at a whiteboard with clean diagrams, sleeves rolled up", "aerial view of a single person at a large minimalist conference table"],
+  "AI and automation": ["close macro shot of hands on a modern keyboard with soft blue screen glow", "clean desk setup with multiple monitors showing data visualizations", "person reviewing tablet analytics in a dark modern office", "empty server room corridor with cool blue lighting", "graphic designer studying a large monitor in a dim creative studio"],
+  "Explanatory": ["overhead flat lay of organized workspace with notebook pen and laptop", "person pointing to a clean diagram on a glass whiteboard", "close up of an open notebook with structured notes and a coffee mug", "two professionals looking at a tablet screen together in bright office", "clean product shot of laptop on concrete surface with soft light"],
+  "610 services": ["marketing team in casual discussion around a bright conference table", "person presenting confidently to a small engaged group", "close up of hands exchanging business cards in professional setting", "creative agency office with plants exposed brick and natural light", "professional shaking hands outside a modern glass office building"],
 };
 
 export default async function handler(req, res) {
@@ -21,74 +28,48 @@ export default async function handler(req, res) {
   if (!client) return res.status(400).json({ error: "Invalid client" });
 
   const captionType = caption.type || "Educational tip";
-  let typeMood = TYPE_MOODS[captionType] || "professional business photography, clean and modern.";
-  // Override local post mood with actual selected location
-  if (captionType.includes("local") || captionType === "San Diego local") {
-    const city = (serviceLocation || "San Diego, CA").split(",")[0];
-    typeMood = `warm ${city} city energy. Local ${city} landmarks, streets, or authentic local settings. Vibrant and community-focused.`;
-  }
+  const style = TYPE_STYLES[captionType] || TYPE_STYLES["Educational tip"];
+  const subjects = TYPE_SUBJECTS[captionType] || TYPE_SUBJECTS["Educational tip"];
 
-  // Parse inspiration settings if provided
+  // Pick subject based on caption number with forceNew randomization
+  const baseIndex = (caption.number - 1) % subjects.length;
+  const subjectIndex = forceNew
+    ? Math.floor(Math.random() * subjects.length)
+    : baseIndex;
+  const subject = subjects[subjectIndex];
+
+  // Build location context
+  const city = serviceLocation && serviceLocation !== "National"
+    ? serviceLocation.split(",")[0].trim()
+    : null;
+  const locationContext = city && captionType.toLowerCase().includes("local")
+    ? `Set in ${city}. Include subtle ${city} visual references if natural.`
+    : "";
+
+  // Build inspiration context
   let inspirationDirective = "";
   if (inspirationContext && inspirationContext.trim()) {
-    inspirationDirective = `\n\nCREATIVE DIRECTION FROM CLIENT:\n${inspirationContext.trim()}`;
+    const lines = inspirationContext.trim().split("\n").filter(l => l.trim());
+    const relevant = lines.filter(l =>
+      l.includes("Energy:") || l.includes("Visual Style:") || l.includes("Color Mood:")
+    ).join(". ");
+    if (relevant) inspirationDirective = `Creative direction: ${relevant}.`;
   }
 
-  // Step 1: Ask Claude to generate a unique visual concept for this specific caption
-  const conceptPrompt = `You are a creative director briefing a commercial photographer for a social media post.
+  const prompt = `Commercial editorial photography. ${subject}. ${style}. ${locationContext} ${inspirationDirective}
 
-The post caption is: "${caption.text.substring(0, 200)}"
-Post type: ${caption.type}
-Monthly topic: ${primaryTopic}
-Service location: ${serviceLocation || "San Diego, CA"}
-Post number in batch: ${caption.number}
-Mood required: ${typeMood}${inspirationDirective}
+Topic context: ${primaryTopic}.
 
-Generate ONE specific, unique photographic scene for this post. It must be completely different from a generic business stock photo.
-
-Rules:
-- Be hyper-specific. Name the exact subject, setting, lighting, angle, and mood.
-- The scene must directly relate to the caption topic: "${primaryTopic}"
-- No office clichés unless truly relevant and described with specificity
-- No people pointing at screens, no generic handshakes, no generic laptops
-- Think like a high-end editorial photographer choosing a scene
-- The scene must feel fresh and distinct from posts ${Math.max(1, caption.number - 3)} through ${caption.number - 1} in this batch
-- ${forceNew ? "Make this COMPLETELY different from any typical business photo. Be unexpected." : ""}
-
-Return ONLY a single sentence describing the exact photographic scene. Nothing else. No preamble.`;
+Technical requirements:
+- Shot on Sony A7R IV, 50mm f/1.4, shallow depth of field
+- Professional commercial photographer quality
+- High dynamic range, sharp subject, creamy bokeh background  
+- Square 1:1 composition for social media
+- NO text, words, signs, logos, watermarks, or readable content anywhere in the image
+- NOT a stock photo cliche, NOT generic business imagery
+- Must look like a real photograph, not AI generated`.trim();
 
   try {
-    const conceptRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-opus-4-5",
-        max_tokens: 150,
-        messages: [{ role: "user", content: conceptPrompt }],
-      }),
-    });
-
-    const conceptData = await conceptRes.json();
-    const visualConcept = conceptData.content?.[0]?.text?.trim() || `A professional business scene related to ${primaryTopic}`;
-
-    // Step 2: Build the DALL-E prompt from the dynamic concept
-    const dallePrompt = `Commercial editorial photography. ${visualConcept}
-
-Technical specs: Sony A7R IV, 50mm f/1.4 lens, shallow depth of field, professional lighting. ${typeMood}
-
-Critical requirements:
-- Must look exactly like a real photograph taken by a professional commercial photographer
-- Absolutely NO text, words, numbers, signs, or readable content anywhere in the image
-- No logos, watermarks, or branded elements
-- No AI-generated artifacts or uncanny valley elements
-- High dynamic range, sharp subject, creamy bokeh background
-- Square 1:1 composition optimized for social media
-- Color grade should feel premium and editorial`;
-
     const response = await fetch("https://api.openai.com/v1/images/generations", {
       method: "POST",
       headers: {
@@ -97,7 +78,7 @@ Critical requirements:
       },
       body: JSON.stringify({
         model: "dall-e-3",
-        prompt: dallePrompt,
+        prompt,
         n: 1,
         size: "1024x1024",
         quality: "hd",
@@ -107,12 +88,11 @@ Critical requirements:
 
     const data = await response.json();
 
-    if (data.data && data.data[0]) {
+    if (data.data?.[0]?.url) {
       return res.status(200).json({
         success: true,
         imageUrl: data.data[0].url,
         number: caption.number,
-        concept: visualConcept,
       });
     } else {
       return res.status(200).json({
