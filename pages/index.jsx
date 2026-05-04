@@ -271,6 +271,8 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
   const [activeSlide, setActiveSlide] = useState(0);
   const [videoUrl, setVideoUrl] = useState(null);
   const [videoUploading, setVideoUploading] = useState(false);
+  const [editingText, setEditingText] = useState(false);
+  const [editedText, setEditedText] = useState(caption.text);
   const fileInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const colors = TYPE_COLORS[caption.type] || TYPE_COLORS["Educational tip"];
@@ -305,6 +307,9 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
       } catch { /* ignore individual slide failures */ }
     });
   }, [imageUrl, caption.isCarousel]);
+
+  // Keep editedText in sync if caption text changes externally
+  useEffect(() => { setEditedText(caption.text); }, [caption.text]);
 
   useEffect(() => {
     // When imageUrl changes (new image or first load), reset and re-watermark
@@ -447,7 +452,26 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
       </div>
 
       <div style={{ padding:"14px", flex:1 }}>
-        <p style={{ fontSize:"13px", color:"#ccc", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", margin:0, whiteSpace:"pre-line" }}>{caption.text}</p>
+        {editingText ? (
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            <textarea
+              value={editedText}
+              onChange={e => setEditedText(e.target.value)}
+              rows={6}
+              style={{ width:"100%", padding:"10px 12px", background:"#0a0a0a", border:"1px solid #4a90d9", borderRadius:"3px", color:"#f0f0f0", fontSize:"13px", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", resize:"vertical", boxSizing:"border-box" }}
+              autoFocus
+            />
+            <div style={{ display:"flex", gap:"6px" }}>
+              <button onClick={() => setEditingText(false)} style={{ ...btnStyle("#4a90d9","#4a90d9","#fff"), fontWeight:"700" }}>Save</button>
+              <button onClick={() => { setEditedText(caption.text); setEditingText(false); }} style={btnStyle("#161616","#2a2a2a","#666")}>Discard</button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ position:"relative", cursor:"text" }} onClick={() => setEditingText(true)}>
+            <p style={{ fontSize:"13px", color:"#ccc", fontFamily:"'Helvetica Neue',Arial,sans-serif", lineHeight:"1.7", margin:0, whiteSpace:"pre-line" }}>{editedText}</p>
+            <span style={{ position:"absolute", top:0, right:0, fontSize:"10px", color:"#333", fontFamily:"monospace", border:"1px solid #222", padding:"2px 6px", borderRadius:"2px", background:"#111" }}>Edit</span>
+          </div>
+        )}
         {caption.isCarousel && caption.slide_1 && (
           <div style={{ marginTop:"14px", borderTop:"1px solid #1a1a1a", paddingTop:"12px", display:"flex", flexDirection:"column", gap:"8px" }}>
             <p style={{ fontSize:"9px", color:"#444", fontFamily:"monospace", textTransform:"uppercase", letterSpacing:"1px", margin:0 }}>Slide content</p>
@@ -462,10 +486,10 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
       </div>
 
       <div style={{ padding:"10px 14px", borderTop:`1px solid ${colors.border}`, display:"flex", gap:"6px", flexWrap:"wrap" }}>
-        <button onClick={() => { navigator.clipboard.writeText(caption.text); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={btnStyle("#161616","#2a2a2a","#888")}>{copied?"Copied":"Copy"}</button>
-        <button onClick={() => downloadText(`610-caption-${caption.number}.txt`, `610 Marketing & PR\n${month} - ${primaryTopic}\nType: ${caption.type}\n\n${caption.text}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download Text</button>
+        <button onClick={() => { navigator.clipboard.writeText(editedText); setCopied(true); setTimeout(()=>setCopied(false),2000); }} style={btnStyle("#161616","#2a2a2a","#888")}>{copied?"Copied":"Copy"}</button>
+        <button onClick={() => downloadText(`610-caption-${caption.number}.txt`, `610 Marketing & PR\n${month} - ${primaryTopic}\nType: ${caption.type}\n\n${editedText}`)} style={btnStyle("#161616","#2a2a2a","#888")}>Download Text</button>
         {displayImage && <button onClick={handleDownloadImage} style={btnStyle("#161616","#2a2a2a","#888")}>Save Image</button>}
-        <button onClick={() => onSchedule(caption, watermarked || sourceImage, imageUrl, caption.isCarousel ? carouselImages : null, videoUrl)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
+        <button onClick={() => onSchedule({...caption, text: editedText}, watermarked || sourceImage, imageUrl, caption.isCarousel ? carouselImages : null, videoUrl)} style={{ ...btnStyle("#fff","#fff","#000"), marginLeft:"auto", fontWeight:"700" }}>Schedule</button>
       </div>
     </div>
   );
