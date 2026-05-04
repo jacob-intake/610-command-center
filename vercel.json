@@ -1,13 +1,39 @@
 {
-  "framework": "nextjs",
-  "buildCommand": "npm run build",
-  "devCommand": "npm run dev",
-  "installCommand": "npm install",
   "functions": {
+    "pages/api/images.js": {
+      "maxDuration": 60
+    },
+    "pages/api/blog.js": {
+      "maxDuration": 60
+    },
+    "pages/api/blog-image.js": {
+      "maxDuration": 60
+    },
     "pages/api/generate.js": {
       "maxDuration": 60
     },
-    "pages/api/images.js": {
+    "pages/api/trending.js": {
+      "maxDuration": 60
+    },
+    "pages/api/upload-video.js": {
+      "maxDuration": 60
+    },
+    "pages/api/upload-image.js": {
+      "maxDuration": 60
+    },
+    "pages/api/wordpress.js": {
+      "maxDuration": 60
+    },
+    "pages/api/buffer.js": {
+      "maxDuration": 30
+    },
+    "pages/api/gmb.js": {
+      "maxDuration": 60
+    },
+    "pages/api/linkedin-blog-post.js": {
+      "maxDuration": 60
+    },
+    "pages/api/analyze-inspiration.js": {
       "maxDuration": 60
     }
   }
