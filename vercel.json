@@ -1,0 +1,40 @@
+{
+  "functions": {
+    "api/images.js": {
+      "maxDuration": 60
+    },
+    "api/blog.js": {
+      "maxDuration": 60
+    },
+    "api/blog-image.js": {
+      "maxDuration": 60
+    },
+    "api/generate.js": {
+      "maxDuration": 60
+    },
+    "api/trending.js": {
+      "maxDuration": 60
+    },
+    "api/upload-video.js": {
+      "maxDuration": 60
+    },
+    "api/upload-image.js": {
+      "maxDuration": 60
+    },
+    "api/wordpress.js": {
+      "maxDuration": 60
+    },
+    "api/buffer.js": {
+      "maxDuration": 30
+    },
+    "api/gmb.js": {
+      "maxDuration": 60
+    },
+    "api/linkedin-blog-post.js": {
+      "maxDuration": 60
+    },
+    "api/analyze-inspiration.js": {
+      "maxDuration": 60
+    }
+  }
+}
