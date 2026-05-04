@@ -33,8 +33,8 @@ const CAPTION_TYPES = [
   // Batch 3 (posts 16-20)
   [
     { type: "Educational tip",   carousel: true  }, // carousel #4
-    { type: `${locationLabel || "San Diego"} local`,   carousel: false },
-    { type: `${locationLabel || "San Diego"} local`,   carousel: false },
+    { type: "Local",   carousel: false },
+    { type: "Local",   carousel: false },
     { type: "Explanatory",       carousel: false },
     { type: "610 services",      carousel: false },
   ],
@@ -42,7 +42,7 @@ const CAPTION_TYPES = [
   [
     { type: "610 services",      carousel: false },
     { type: "610 services",      carousel: false },
-    { type: "San Diego local",   carousel: false },
+    { type: "Local",   carousel: false },
     { type: "Explanatory",       carousel: true  }, // carousel #5
     { type: "Educational tip",   carousel: false },
   ],
@@ -71,6 +71,11 @@ export default async function handler(req, res) {
   if (!client) return res.status(400).json({ error: "Invalid client" });
 
   const locationLabel = serviceLocation && serviceLocation !== "National" ? serviceLocation : null;
+  const localPostType = locationLabel ? `${locationLabel.split(",")[0]} local` : "San Diego local";
+  const localHashtags = locationLabel
+    ? `#${locationLabel.split(",")[0].replace(/ /g,"")} #${locationLabel.split(",")[0].replace(/ /g,"")}Business #localSEO #digitalmarketing #610marketing`
+    : "#SanDiego #SanDiegoBusiness #SanDiegoMarketing #localSEO #610marketing";
+
   const context = `Month: ${month}
 Primary Topic: ${primaryTopic}
 Secondary Topic: ${secondaryTopic || "None"}
@@ -80,12 +85,14 @@ Special Instructions: ${contentNotes || "None"}`;
   let prompt = "";
 
   if (batch >= 0 && batch <= 4) {
-    const batchDefs = CAPTION_TYPES[batch];
+    const batchDefs = CAPTION_TYPES[batch].map(def =>
+      def.type === "Local" ? { ...def, type: localPostType } : def
+    );
     const startNum = batch * 5 + 1;
 
     const captionInstructions = batchDefs.map((def, i) => {
       const num = startNum + i;
-      const hashtags = HASHTAG_SETS[def.type] || HASHTAG_SETS["Educational tip"];
+      const hashtags = def.type === localPostType ? localHashtags : (HASHTAG_SETS[def.type] || HASHTAG_SETS["Educational tip"]);
 
       if (def.carousel) {
         return `Caption ${num}: type "${def.type}" - CAROUSEL FORMAT
