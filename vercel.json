@@ -1,39 +1,39 @@
 {
   "functions": {
-    "pages/api/images.js": {
+    "api/images.js": {
       "maxDuration": 60
     },
-    "pages/api/blog.js": {
+    "api/blog.js": {
       "maxDuration": 60
     },
-    "pages/api/blog-image.js": {
+    "api/blog-image.js": {
       "maxDuration": 60
     },
-    "pages/api/generate.js": {
+    "api/generate.js": {
       "maxDuration": 60
     },
-    "pages/api/trending.js": {
+    "api/trending.js": {
       "maxDuration": 60
     },
-    "pages/api/upload-video.js": {
+    "api/upload-video.js": {
       "maxDuration": 60
     },
-    "pages/api/upload-image.js": {
+    "api/upload-image.js": {
       "maxDuration": 60
     },
-    "pages/api/wordpress.js": {
+    "api/wordpress.js": {
       "maxDuration": 60
     },
-    "pages/api/buffer.js": {
+    "api/buffer.js": {
       "maxDuration": 30
     },
-    "pages/api/gmb.js": {
+    "api/gmb.js": {
       "maxDuration": 60
     },
-    "pages/api/linkedin-blog-post.js": {
+    "api/linkedin-blog-post.js": {
       "maxDuration": 60
     },
-    "pages/api/analyze-inspiration.js": {
+    "api/analyze-inspiration.js": {
       "maxDuration": 60
     }
   }
