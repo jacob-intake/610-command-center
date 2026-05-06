@@ -113,7 +113,33 @@ async function applyWatermark(imageSource) {
       logo.src = LOGO_B64;
     };
 
-    img.onerror = () => resolve(null);
+    img.onerror = () => {
+      // If proxy fails, try loading directly
+      const directImg = new Image();
+      directImg.crossOrigin = "anonymous";
+      directImg.onload = () => {
+        ctx.drawImage(directImg, 0, 0, 1024, 1024);
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        const pillW = 260, pillH = 64;
+        const pillX = (1024 - pillW) / 2, pillY = 1024 - pillH - 18, rx = 10;
+        ctx.beginPath();
+        ctx.moveTo(pillX+rx,pillY); ctx.lineTo(pillX+pillW-rx,pillY);
+        ctx.quadraticCurveTo(pillX+pillW,pillY,pillX+pillW,pillY+rx);
+        ctx.lineTo(pillX+pillW,pillY+pillH-rx);
+        ctx.quadraticCurveTo(pillX+pillW,pillY+pillH,pillX+pillW-rx,pillY+pillH);
+        ctx.lineTo(pillX+rx,pillY+pillH);
+        ctx.quadraticCurveTo(pillX,pillY+pillH,pillX,pillY+pillH-rx);
+        ctx.lineTo(pillX,pillY+rx);
+        ctx.quadraticCurveTo(pillX,pillY,pillX+rx,pillY);
+        ctx.closePath(); ctx.fill();
+        const logo = new Image();
+        logo.onload = () => { ctx.drawImage(logo, Math.round((1024-220)/2), 1024-Math.round((logo.height/logo.width)*220)-20, 220, Math.round((logo.height/logo.width)*220)); resolve(canvas.toDataURL("image/jpeg",0.92)); };
+        logo.onerror = () => resolve(canvas.toDataURL("image/jpeg",0.92));
+        logo.src = LOGO_B64;
+      };
+      directImg.onerror = () => resolve(imageSource); // return raw url as last resort
+      directImg.src = imageSource;
+    };
 
     if (imageSource && imageSource.startsWith("http")) {
       img.src = "/api/proxy-image?url=" + encodeURIComponent(imageSource);
@@ -1145,7 +1171,8 @@ export default function CommandCenter() {
       }
 
       setImages(prev => ({ ...prev, [caption.number]: permanentUrl }));
-    } catch {
+    } catch (err) {
+      console.error("Image generation error for caption", caption.number, err);
       setFailedImages(prev => new Set([...prev, caption.number]));
     }
 
