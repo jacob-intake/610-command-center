@@ -630,7 +630,8 @@ function BlogWriter({ blog, clientId, onClose }) {
       if (!wpData) { setPublishingLive(false); return; }
 
       // Step 2: Schedule LinkedIn post
-      const scheduledAt = linkedInSchedule || null;
+      // Convert local datetime to UTC ISO string for Buffer
+      const scheduledAt = linkedInSchedule ? new Date(linkedInSchedule).toISOString() : null;
       const liRes = await fetch("/api/linkedin-blog-post", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
