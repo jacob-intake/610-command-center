@@ -1,22 +1,17 @@
 import { getClient } from "../../lib/clients";
 
-// 25 posts across 5 batches of 5
-// 4-5 carousels marked with isCarousel: true
-// New type: "Explanatory" for multi-point educational content
-// Carousels are Educational tip or Explanatory types
-
 const CAPTION_TYPES = [
   // Batch 0 (posts 1-5)
   [
     { type: "Educational tip",   carousel: false },
-    { type: "Educational tip",   carousel: true  }, // carousel #1
+    { type: "Educational tip",   carousel: true  },
     { type: "Educational tip",   carousel: false },
     { type: "Thought leadership", carousel: false },
     { type: "Thought leadership", carousel: false },
   ],
   // Batch 1 (posts 6-10)
   [
-    { type: "Explanatory",       carousel: true  }, // carousel #2
+    { type: "Explanatory",       carousel: true  },
     { type: "Educational tip",   carousel: false },
     { type: "Thought leadership", carousel: false },
     { type: "Thought leadership", carousel: false },
@@ -26,15 +21,15 @@ const CAPTION_TYPES = [
   [
     { type: "AI and automation", carousel: false },
     { type: "AI and automation", carousel: false },
-    { type: "Explanatory",       carousel: true  }, // carousel #3
+    { type: "Explanatory",       carousel: true  },
     { type: "Thought leadership", carousel: false },
     { type: "AI and automation", carousel: false },
   ],
   // Batch 3 (posts 16-20)
   [
-    { type: "Educational tip",   carousel: true  }, // carousel #4
-    { type: "Local",   carousel: false },
-    { type: "Local",   carousel: false },
+    { type: "Educational tip",   carousel: true  },
+    { type: "Local",             carousel: false },
+    { type: "Local",             carousel: false },
     { type: "Explanatory",       carousel: false },
     { type: "610 services",      carousel: false },
   ],
@@ -42,8 +37,8 @@ const CAPTION_TYPES = [
   [
     { type: "610 services",      carousel: false },
     { type: "610 services",      carousel: false },
-    { type: "Local",   carousel: false },
-    { type: "Explanatory",       carousel: true  }, // carousel #5
+    { type: "Local",             carousel: false },
+    { type: "Explanatory",       carousel: true  },
     { type: "Educational tip",   carousel: false },
   ],
 ];
@@ -52,7 +47,6 @@ const HASHTAG_SETS = {
   "Educational tip": "#digitalmarketing #smallbusiness #marketingtips #AItools #businessgrowth",
   "Thought leadership": "#digitalmarketing #AIstrategy #businessleadership #futureofbusiness #610marketing",
   "AI and automation": "#AIautomation #artificialintelligence #AIbusiness #businessautomation #610marketing",
-  "San Diego local": "#SanDiego #SanDiegoBusiness #SanDiegoMarketing #localSEO #610marketing",
   "610 services": "#610marketing #digitalmarketing #AIagency #SEO #marketingagency",
   "Explanatory": "#digitalmarketing #educationalcontent #businesstips #AItools #610marketing",
 };
@@ -71,10 +65,9 @@ export default async function handler(req, res) {
   if (!client) return res.status(400).json({ error: "Invalid client" });
 
   const locationLabel = serviceLocation && serviceLocation !== "National" ? serviceLocation : null;
-  const localPostType = locationLabel ? `${locationLabel.split(",")[0]} local` : "San Diego local";
-  const localHashtags = locationLabel
-    ? `#${locationLabel.split(",")[0].replace(/ /g,"")} #${locationLabel.split(",")[0].replace(/ /g,"")}Business #localSEO #digitalmarketing #610marketing`
-    : "#SanDiego #SanDiegoBusiness #SanDiegoMarketing #localSEO #610marketing";
+  const city = locationLabel ? locationLabel.split(",")[0].trim() : "San Diego";
+  const localPostType = city + " local";
+  const localHashtags = "#" + city.replace(/ /g, "") + " #" + city.replace(/ /g, "") + "Business #localSEO #digitalmarketing #610marketing";
 
   const context = `Month: ${month}
 Primary Topic: ${primaryTopic}
@@ -105,7 +98,7 @@ Special Instructions: ${contentNotes || "None"}`;
   - Also write 4 slide texts (slide_1 through slide_4):
     * slide_1: Hook or title slide - bold statement or question (1 sentence)
     * slide_2: First key point or insight (2-3 sentences)
-    * slide_3: Second key point or insight (2-3 sentences)  
+    * slide_3: Second key point or insight (2-3 sentences)
     * slide_4: Takeaway or CTA - what to do next (2-3 sentences)
   - Hashtags to append: ${hashtags}`;
       } else {
@@ -143,6 +136,7 @@ Rules:
 - Plain text only, no markdown, no asterisks
 - Write in the client brand voice
 - Make it relevant to: ${primaryTopic}
+- Location context: ${serviceLocation || "San Diego, CA"} - reference this city naturally when appropriate
 - Every caption must end with the 3 dots on separate lines then hashtags
 - Carousel captions must include all 4 slide texts
 - Non-carousel posts: omit slide fields entirely
@@ -213,7 +207,7 @@ Return only the JSON array. Nothing else.`;
     let parsed;
     try {
       parsed = JSON.parse(raw);
-    } catch (parseErr) {
+    } catch {
       return res.status(500).json({ error: "Failed to parse response. Please try again." });
     }
 
