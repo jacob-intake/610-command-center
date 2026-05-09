@@ -77,12 +77,12 @@ Technical requirements:
         Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "dall-e-3",
+        model: "gpt-image-1",
         prompt,
         n: 1,
         size: "1024x1024",
-        quality: "hd",
-        response_format: "url",
+        quality: "high",
+        output_format: "url",
       }),
     });
 
