@@ -1099,6 +1099,7 @@ export default function CommandCenter() {
   });
   const [energy, setEnergy] = useState("");
   const [visualStyle, setVisualStyle] = useState("");
+  const [brandStyleKey, setBrandStyleKey] = useState("");
   const [audienceFocus, setAudienceFocus] = useState("");
   const [contentTone, setContentTone] = useState("");
   const [colorMood, setColorMood] = useState("");
@@ -1139,7 +1140,7 @@ export default function CommandCenter() {
       const res = await fetch("/api/images", {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew, inspirationContext: buildInspirationContext(), serviceLocation }),
+        body: JSON.stringify({ caption, primaryTopic, clientId: selectedClient.id, forceNew, inspirationContext: buildInspirationContext(), serviceLocation, visualStyle: brandStyleKey || null }),
       });
       const data = await res.json();
       if (data.success && data.imageUrl) return data.imageUrl;
@@ -1386,6 +1387,27 @@ export default function CommandCenter() {
                       <option value="Stafford, VA">Stafford, VA</option>
                       <option value="National">National (No specific city)</option>
                     </select>
+                  </div>
+
+                  <div style={{ display:"flex", flexDirection:"column", gap:"7px" }}>
+                    <label style={{ fontSize:"11px", color:"#444", textTransform:"uppercase", letterSpacing:"1px", fontWeight:"500" }}>Visual Style</label>
+                    <select value={brandStyleKey} onChange={e => setBrandStyleKey(e.target.value)} style={{ width:"100%", padding:"11px 14px", background:"#161616", border:`1px solid ${brandStyleKey?"#2a3a6b":"#272727"}`, borderRadius:"3px", color:brandStyleKey?"#f0f0f0":"#444", fontSize:"13px", fontFamily:"'Helvetica Neue',Arial,sans-serif", cursor:"pointer" }}>
+                      <option value="">— Default Photography —</option>
+                      <option value="Nike Energy">Nike Energy</option>
+                      <option value="Authoritative">Authoritative</option>
+                      <option value="Blended World">Blended World</option>
+                      <option value="Tech-centered">Tech-centered</option>
+                    </select>
+                    {brandStyleKey && (
+                      <p style={{ fontSize:"10px", color:"#4a90d9", fontFamily:"monospace", margin:"2px 0 0 0" }}>
+                        {{
+                          "Nike Energy": "Single subject, threshold moment, vast negative space",
+                          "Authoritative": "Dark background, headline-first, news media aesthetic",
+                          "Blended World": "Real human on bold flat color, digital elements floating around them",
+                          "Tech-centered": "Clean background, extreme close crop, quiet and inevitable",
+                        }}[brandStyleKey]
+                      </p>
+                    )}
                   </div>
 
                   {[
