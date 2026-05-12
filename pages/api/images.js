@@ -11,11 +11,11 @@ const PHOTO_BRIEFS = {
     "Editorial photograph of a solo professional standing in a modern open office space, looking out a large floor-to-ceiling window at a city view. Seen from the side at medium distance. Contemplative posture, weight shifted to one leg, arms loosely crossed. Late afternoon backlighting creating a warm rim light silhouette. Shot on 35mm at f/4, clean background exposure, subject slightly underexposed for mood.",
   ],
   "Thought leadership": [
-    "Editorial portrait of a confident professional in their 40s standing against a blurred dark background. Direct eye contact with camera, slight forward lean suggesting engagement. One hand in pocket, relaxed but authoritative posture. Strong directional key light from camera left, deep shadow on opposite side. Shot on 85mm at f/1.4, extremely shallow depth of field. Serious expression, natural skin texture, no retouching feel. Dark navy or charcoal clothing.",
-    "Cinematic wide shot of a lone executive figure standing at a floor-to-ceiling window overlooking a city at dusk. City lights beginning to emerge below. Figure is in silhouette with warm rim lighting outlining the profile. Shot on 35mm at f/5.6, deep focus on city background, figure dark against glowing window. Dramatic and contemplative mood.",
-    "Documentary-style photograph of a speaker at a presentation, caught mid-gesture with one hand raised making a point. Audience visible as soft blurred shapes in foreground. Strong stage lighting from above, rim light on shoulders. Genuine animated expression, eyes focused on audience not camera. Shot on 70mm at f/2.8 from the side. High contrast, cinematic color grade.",
-    "Close editorial portrait of a business leader in their 50s, silver hair, looking slightly off-camera. Shot with 100mm macro lens at f/2.0, face fills most of the frame. Extremely detailed skin texture, visible pores, laugh lines, subtle stubble. Soft natural window light from one direction, gentle fill on shadow side. Neutral background, slight warmth to color grade.",
-    "Atmospheric photograph of an empty modern boardroom at night. Long conference table reflects overhead pendant lighting. City visible through glass walls with light trails from passing traffic. Shot on wide 24mm lens at f/8 with slow shutter, slight motion in city lights. Moody blue-grey color grade, sharp architectural details, polished table surface reflection.",
+    "Candid photograph of a woman in her 40s sitting cross-legged on a modern sofa in a bright creative studio, laptop open beside her, looking directly at camera with a calm knowing expression. Natural window light. Shot on 85mm at f/2.0. Warm tones, casual but authoritative.",
+    "Atmospheric photograph of an empty modern boardroom at night. Long conference table reflects overhead pendant lighting. City lights visible through glass walls. Shot on wide 24mm lens at f/8. No people. Moody blue-grey color grade.",
+    "Documentary photograph of a man in his 30s writing in a leather notebook at a standing desk in a minimalist home office. Bookshelves behind him, afternoon light slanting through blinds. Candid, not aware of camera. Shot on 50mm at f/2.8.",
+    "Wide shot of a single woman standing at the edge of a rooftop terrace, city skyline behind her, golden hour light, arms relaxed at sides, looking at the horizon. Shot on 28mm at f/5.6. Aspirational, forward-looking, warm amber tones.",
+    "Close-up documentary portrait of a person's hands and face together, chin resting on folded hands, deep in thought, slight smile. Shallow depth of field on 85mm at f/1.8. Dark neutral background, single soft window light. Intimate and genuine.",
   ],
   "AI and automation": [
     "Close documentary photograph of a developer's hands resting on a laptop keyboard, screen reflecting in their glasses. Multiple monitor setup visible out of focus in background showing code and data. Shot at f/2.0 on 50mm, shallow depth of field. Cool blue ambient light from screens, one warm desk lamp. Dark moody workspace, cables and peripherals visible suggesting real working environment.",
@@ -158,9 +158,22 @@ export default async function handler(req, res) {
   }
 
   // Build the final prompt as a photography brief
-  const prompt = `Photorealistic photograph. ${selectedBrief}${creativeLayer}
+  // Add caption-number-based uniqueness seed to prevent repetition
+const uniqueSeeds = [
+  "warm morning light, indoor setting",
+  "golden hour, outdoor urban environment",
+  "overcast soft light, modern workspace",
+  "late afternoon, open architectural space",
+  "cool blue ambient light, evening indoor",
+  "bright midday natural light, minimal setting",
+  "dramatic side lighting, interior space",
+  "diffused cloudy daylight, street level",
+];
+const uniqueSeed = uniqueSeeds[(caption.number - 1) % uniqueSeeds.length];
 
-Critical requirements: This must look exactly like a real photograph taken by a professional photographer, not AI-generated. Real skin texture with visible pores. Natural fabric wrinkles and wear. Authentic imperfections. Genuine candid expressions not posed. No text, words, logos, watermarks, or readable signage anywhere in the image. Square 1:1 composition.`;
+const prompt = `Photorealistic photograph. ${selectedBrief}${creativeLayer} Lighting and time of day: ${uniqueSeed}.
+
+Critical requirements: This must look exactly like a real photograph taken by a professional photographer, not AI-generated. Real skin texture with visible pores. Natural fabric wrinkles and wear. Authentic imperfections. Genuine candid expressions not posed. No text, words, logos, watermarks, or readable signage anywhere in the image. Square 1:1 composition. This image must look completely different from any other image in this batch. Vary the subject demographics, environment, and composition significantly.`;
 
   try {
     const response = await fetch("https://api.openai.com/v1/images/generations", {
