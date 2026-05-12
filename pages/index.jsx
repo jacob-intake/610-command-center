@@ -160,8 +160,8 @@ async function applyTextOverlay(imageSource, captionText, style) {
       ctx.drawImage(img, 0, 0, 1024, 1024);
 
       // Extract first sentence or up to 60 chars as the overlay text
-      const rawText = captionText.replace(/
-.*$/s, "").trim();
+      const newlineIdx = captionText.indexOf("\n");
+    const rawText = (newlineIdx > -1 ? captionText.substring(0, newlineIdx) : captionText).trim();
       const words = rawText.split(" ");
       let overlayText = "";
       let line = "";
