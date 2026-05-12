@@ -149,6 +149,106 @@ async function applyWatermark(imageSource) {
   });
 }
 
+async function applyTextOverlay(imageSource, captionText, style) {
+  return new Promise((resolve) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1024; canvas.height = 1024;
+    const ctx = canvas.getContext("2d");
+
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, 0, 0, 1024, 1024);
+
+      // Extract first sentence or up to 60 chars as the overlay text
+      const rawText = captionText.replace(/
+.*$/s, "").trim();
+      const words = rawText.split(" ");
+      let overlayText = "";
+      let line = "";
+      for (const word of words) {
+        if ((line + word).length > 28) {
+          overlayText += line.trim() + "
+";
+          line = word + " ";
+        } else {
+          line += word + " ";
+        }
+        if (overlayText.split("
+").length > 3) break;
+      }
+      overlayText += line.trim();
+      overlayText = overlayText.trim();
+
+      const lines = overlayText.split("
+").filter(Boolean);
+      const fontSize = style === "Authoritative" ? 72 : 80;
+      const fontFamily = "'Arial Black', 'Helvetica Neue', Arial, sans-serif";
+
+      ctx.font = `900 ${fontSize}px ${fontFamily}`;
+      ctx.textAlign = "left";
+
+      // Dark overlay for readability on Authoritative style
+      if (style === "Authoritative") {
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(0, 0, 1024, 1024);
+      }
+
+      const lineHeight = fontSize * 1.15;
+      const startY = style === "Authoritative"
+        ? 180
+        : Math.round(1024 - (lines.length * lineHeight) - 120);
+      const x = 52;
+
+      // Draw text shadow for Nike Energy
+      if (style === "Nike Energy") {
+        ctx.fillStyle = "rgba(0,0,0,0.45)";
+        lines.forEach((line, i) => {
+          ctx.fillText(line.toUpperCase(), x + 4, startY + (i * lineHeight) + 4);
+        });
+      }
+
+      // Draw main text
+      ctx.fillStyle = "#ffffff";
+      lines.forEach((line, i) => {
+        ctx.fillText(line.toUpperCase(), x, startY + (i * lineHeight));
+      });
+
+      // Apply watermark on top
+      const logo = new Image();
+      logo.onload = () => {
+        const logoW = 220;
+        const logoH = Math.round((logo.height / logo.width) * logoW);
+        const logoX = Math.round((1024 - logoW) / 2);
+        const logoY = 1024 - logoH - 20;
+        const padX = 24, padY = 12, rx = 10;
+        const bx = logoX - padX, by = logoY - padY;
+        const bw = logoW + padX * 2, bh = logoH + padY * 2;
+        ctx.fillStyle = "rgba(0,0,0,0.65)";
+        ctx.beginPath();
+        ctx.moveTo(bx+rx,by); ctx.lineTo(bx+bw-rx,by);
+        ctx.quadraticCurveTo(bx+bw,by,bx+bw,by+rx);
+        ctx.lineTo(bx+bw,by+bh-rx);
+        ctx.quadraticCurveTo(bx+bw,by+bh,bx+bw-rx,by+bh);
+        ctx.lineTo(bx+rx,by+bh);
+        ctx.quadraticCurveTo(bx,by+bh,bx,by+bh-rx);
+        ctx.lineTo(bx,by+rx);
+        ctx.quadraticCurveTo(bx,by,bx+rx,by);
+        ctx.closePath(); ctx.fill();
+        ctx.drawImage(logo, logoX, logoY, logoW, logoH);
+        resolve(canvas.toDataURL("image/jpeg", 0.92));
+      };
+      logo.onerror = () => resolve(canvas.toDataURL("image/jpeg", 0.92));
+      logo.src = LOGO_B64;
+    };
+    img.onerror = () => resolve(null);
+    if (imageSource && imageSource.startsWith("http")) {
+      img.src = "/api/proxy-image?url=" + encodeURIComponent(imageSource);
+    } else {
+      img.src = imageSource;
+    }
+  });
+}
+
 async function fetchImage(caption, primaryTopic, clientId) {
   const res = await fetch("/api/images", {
     method:"POST",
@@ -287,7 +387,7 @@ function TrendingTopicsPanel({ onUseTopic }) {
   );
 }
 
-function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule, onRetryImage, onRenderNew, month, primaryTopic }) {
+function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule, onRetryImage, onRenderNew, month, primaryTopic, brandStyleKey }) {
   const [copied, setCopied] = useState(false);
   const [watermarked, setWatermarked] = useState(null);
   const [watermarking, setWatermarking] = useState(false);
@@ -345,10 +445,17 @@ function CaptionCard({ caption, imageUrl, imageLoading, imageFailed, onSchedule,
     setWatermarked(null);
     setCustomImage(null);
     setWatermarking(true);
-    applyWatermark(imageUrl).then(result => {
-      if (result) {
-        setWatermarked(result);
-      }
+
+    // Randomly apply text overlay for Nike Energy and Authoritative styles
+    const useTextOverlay = (brandStyleKey === "Nike Energy" || brandStyleKey === "Authoritative")
+      && (caption.number % 2 === 0); // Even-numbered cards get text overlay
+
+    const applyFn = useTextOverlay
+      ? applyTextOverlay(imageUrl, caption.text, brandStyleKey)
+      : applyWatermark(imageUrl);
+
+    applyFn.then(result => {
+      if (result) setWatermarked(result);
       setWatermarking(false);
     });
   }, [imageUrl]);
@@ -1585,9 +1692,10 @@ export default function CommandCenter() {
                               imageFailed={failedImages.has(caption.number)}
                               onSchedule={(cap, img, rawImg, carouselImgs, vidUrl) => setScheduleData({ caption: cap, image: img, rawImageUrl: rawImg, carouselImageUrls: carouselImgs, videoUrl: vidUrl })}
                               onRetryImage={(cap) => generateSingleImage(cap, true)}
-                          onRenderNew={(cap) => generateSingleImage(cap, true, true)}
+                              onRenderNew={(cap) => generateSingleImage(cap, true, true)}
                               month={resultMeta?.month || month}
                               primaryTopic={resultMeta?.primaryTopic || primaryTopic}
+                              brandStyleKey={brandStyleKey}
                             />
                           ))}
                         </div>
