@@ -154,66 +154,59 @@ async function applyTextOverlay(imageSource, captionText, style) {
     const canvas = document.createElement("canvas");
     canvas.width = 1024; canvas.height = 1024;
     const ctx = canvas.getContext("2d");
-
     const img = new Image();
     img.onload = () => {
       ctx.drawImage(img, 0, 0, 1024, 1024);
 
-      // Extract first sentence or up to 60 chars as the overlay text
-      const newlineIdx = captionText.indexOf("\n");
-    const rawText = (newlineIdx > -1 ? captionText.substring(0, newlineIdx) : captionText).trim();
-      const words = rawText.split(" ");
-      let overlayText = "";
-      let line = "";
-      for (const word of words) {
-        if ((line + word).length > 28) {
-          overlayText += line.trim() + "
-";
-          line = word + " ";
+      // Get first line of caption text only
+      const parts = captionText.split("\n");
+      const firstLine = parts[0] ? parts[0].trim() : captionText.trim();
+
+      // Word wrap at 28 chars per line, max 3 lines
+      const words = firstLine.split(" ");
+      const wrappedLines = [];
+      let currentLine = "";
+      for (let wi = 0; wi < words.length; wi++) {
+        const word = words[wi];
+        const test = currentLine ? currentLine + " " + word : word;
+        if (test.length > 28 && currentLine) {
+          wrappedLines.push(currentLine.toUpperCase());
+          currentLine = word;
+          if (wrappedLines.length >= 3) break;
         } else {
-          line += word + " ";
+          currentLine = test;
         }
-        if (overlayText.split("
-").length > 3) break;
       }
-      overlayText += line.trim();
-      overlayText = overlayText.trim();
+      if (currentLine && wrappedLines.length < 3) {
+        wrappedLines.push(currentLine.toUpperCase());
+      }
 
-      const lines = overlayText.split("
-").filter(Boolean);
       const fontSize = style === "Authoritative" ? 72 : 80;
-      const fontFamily = "'Arial Black', 'Helvetica Neue', Arial, sans-serif";
-
-      ctx.font = `900 ${fontSize}px ${fontFamily}`;
+      ctx.font = "900 " + fontSize + "px Arial Black, Helvetica Neue, Arial, sans-serif";
       ctx.textAlign = "left";
 
-      // Dark overlay for readability on Authoritative style
       if (style === "Authoritative") {
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         ctx.fillRect(0, 0, 1024, 1024);
       }
 
-      const lineHeight = fontSize * 1.15;
-      const startY = style === "Authoritative"
-        ? 180
-        : Math.round(1024 - (lines.length * lineHeight) - 120);
+      const lineHeight = Math.round(fontSize * 1.15);
+      const totalHeight = wrappedLines.length * lineHeight;
+      const startY = style === "Authoritative" ? 180 : (1024 - totalHeight - 120);
       const x = 52;
 
-      // Draw text shadow for Nike Energy
       if (style === "Nike Energy") {
         ctx.fillStyle = "rgba(0,0,0,0.45)";
-        lines.forEach((line, i) => {
-          ctx.fillText(line.toUpperCase(), x + 4, startY + (i * lineHeight) + 4);
-        });
+        for (let li = 0; li < wrappedLines.length; li++) {
+          ctx.fillText(wrappedLines[li], x + 4, startY + (li * lineHeight) + 4);
+        }
       }
 
-      // Draw main text
       ctx.fillStyle = "#ffffff";
-      lines.forEach((line, i) => {
-        ctx.fillText(line.toUpperCase(), x, startY + (i * lineHeight));
-      });
+      for (let li = 0; li < wrappedLines.length; li++) {
+        ctx.fillText(wrappedLines[li], x, startY + (li * lineHeight));
+      }
 
-      // Apply watermark on top
       const logo = new Image();
       logo.onload = () => {
         const logoW = 220;
@@ -225,14 +218,14 @@ async function applyTextOverlay(imageSource, captionText, style) {
         const bw = logoW + padX * 2, bh = logoH + padY * 2;
         ctx.fillStyle = "rgba(0,0,0,0.65)";
         ctx.beginPath();
-        ctx.moveTo(bx+rx,by); ctx.lineTo(bx+bw-rx,by);
-        ctx.quadraticCurveTo(bx+bw,by,bx+bw,by+rx);
-        ctx.lineTo(bx+bw,by+bh-rx);
-        ctx.quadraticCurveTo(bx+bw,by+bh,bx+bw-rx,by+bh);
-        ctx.lineTo(bx+rx,by+bh);
-        ctx.quadraticCurveTo(bx,by+bh,bx,by+bh-rx);
-        ctx.lineTo(bx,by+rx);
-        ctx.quadraticCurveTo(bx,by,bx+rx,by);
+        ctx.moveTo(bx+rx, by); ctx.lineTo(bx+bw-rx, by);
+        ctx.quadraticCurveTo(bx+bw, by, bx+bw, by+rx);
+        ctx.lineTo(bx+bw, by+bh-rx);
+        ctx.quadraticCurveTo(bx+bw, by+bh, bx+bw-rx, by+bh);
+        ctx.lineTo(bx+rx, by+bh);
+        ctx.quadraticCurveTo(bx, by+bh, bx, by+bh-rx);
+        ctx.lineTo(bx, by+rx);
+        ctx.quadraticCurveTo(bx, by, bx+rx, by);
         ctx.closePath(); ctx.fill();
         ctx.drawImage(logo, logoX, logoY, logoW, logoH);
         resolve(canvas.toDataURL("image/jpeg", 0.92));
