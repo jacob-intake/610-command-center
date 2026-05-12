@@ -1400,12 +1400,10 @@ export default function CommandCenter() {
                     </select>
                     {brandStyleKey && (
                       <p style={{ fontSize:"10px", color:"#4a90d9", fontFamily:"monospace", margin:"2px 0 0 0" }}>
-                        {{
-                          "Nike Energy": "Single subject, threshold moment, vast negative space",
-                          "Authoritative": "Dark background, headline-first, news media aesthetic",
-                          "Blended World": "Real human on bold flat color, digital elements floating around them",
-                          "Tech-centered": "Clean background, extreme close crop, quiet and inevitable",
-                        }}[brandStyleKey]
+                        {brandStyleKey === "Nike Energy" && "Single subject, threshold moment, vast negative space"}
+                        {brandStyleKey === "Authoritative" && "Dark background, headline-first, news media aesthetic"}
+                        {brandStyleKey === "Blended World" && "Real human on bold flat color, digital elements floating around them"}
+                        {brandStyleKey === "Tech-centered" && "Clean background, extreme close crop, quiet and inevitable"}
                       </p>
                     )}
                   </div>
