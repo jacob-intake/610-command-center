@@ -158,19 +158,28 @@ async function applyTextOverlay(imageSource, captionText, style) {
     img.onload = () => {
       ctx.drawImage(img, 0, 0, 1024, 1024);
 
-      // Get first line of caption text only
+      // Get first sentence only, max 8 words for overlay
       const parts = captionText.split("\n");
-      const firstLine = parts[0] ? parts[0].trim() : captionText.trim();
+      const firstSentence = parts[0] ? parts[0].trim() : captionText.trim();
+      const allWords = firstSentence.split(" ").filter(Boolean);
+      const maxWords = 8;
+      const selectedWords = allWords.slice(0, maxWords);
 
-      // Word wrap at 28 chars per line, max 3 lines
-      const words = firstLine.split(" ");
+      // Measure and wrap using actual canvas measurement
+      const fontSize = 90;
+      ctx.font = "900 " + fontSize + "px Arial Black, Arial, sans-serif";
+      ctx.textAlign = "left";
+
+      const maxWidth = 900;
       const wrappedLines = [];
       let currentLine = "";
-      for (let wi = 0; wi < words.length; wi++) {
-        const word = words[wi];
+
+      for (let wi = 0; wi < selectedWords.length; wi++) {
+        const word = selectedWords[wi].toUpperCase();
         const test = currentLine ? currentLine + " " + word : word;
-        if (test.length > 28 && currentLine) {
-          wrappedLines.push(currentLine.toUpperCase());
+        const measured = ctx.measureText(test).width;
+        if (measured > maxWidth && currentLine) {
+          wrappedLines.push(currentLine);
           currentLine = word;
           if (wrappedLines.length >= 3) break;
         } else {
@@ -178,35 +187,33 @@ async function applyTextOverlay(imageSource, captionText, style) {
         }
       }
       if (currentLine && wrappedLines.length < 3) {
-        wrappedLines.push(currentLine.toUpperCase());
+        wrappedLines.push(currentLine);
       }
 
-      const fontSize = style === "Authoritative" ? 72 : 80;
-      ctx.font = "900 " + fontSize + "px Arial Black, Helvetica Neue, Arial, sans-serif";
-      ctx.textAlign = "left";
-
-      if (style === "Authoritative") {
-        ctx.fillStyle = "rgba(0,0,0,0.55)";
-        ctx.fillRect(0, 0, 1024, 1024);
-      }
-
-      const lineHeight = Math.round(fontSize * 1.15);
+      const lineHeight = Math.round(fontSize * 1.2);
       const totalHeight = wrappedLines.length * lineHeight;
-      const startY = style === "Authoritative" ? 180 : (1024 - totalHeight - 120);
-      const x = 52;
+      const startY = style === "Authoritative"
+        ? fontSize + 40
+        : Math.round(1024 - totalHeight - 140);
+      const x = 40;
 
-      if (style === "Nike Energy") {
-        ctx.fillStyle = "rgba(0,0,0,0.45)";
-        for (let li = 0; li < wrappedLines.length; li++) {
-          ctx.fillText(wrappedLines[li], x + 4, startY + (li * lineHeight) + 4);
-        }
+      // Semi-transparent background strip for readability
+      ctx.fillStyle = "rgba(0,0,0,0.42)";
+      ctx.fillRect(0, startY - fontSize, 1024, totalHeight + 24);
+
+      // Shadow pass
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      for (let li = 0; li < wrappedLines.length; li++) {
+        ctx.fillText(wrappedLines[li], x + 3, startY + (li * lineHeight) + 3);
       }
 
+      // Main text
       ctx.fillStyle = "#ffffff";
       for (let li = 0; li < wrappedLines.length; li++) {
         ctx.fillText(wrappedLines[li], x, startY + (li * lineHeight));
       }
 
+      // Watermark
       const logo = new Image();
       logo.onload = () => {
         const logoW = 220;
