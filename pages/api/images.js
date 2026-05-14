@@ -4,7 +4,7 @@ import { getClient } from "../../lib/clients";
 // Each entry is a specific scenario described as a photographer would brief a shoot
 const PHOTO_BRIEFS = {
   "Educational tip": [
-    "Candid photograph of a business professional in their late 30s seated at a clean oak desk, reviewing printed documents with genuine concentration. Left hand rests on the page, right hand holds a pen mid-thought. Natural window light from the left casting soft directional shadows across the desk surface. Shot on 85mm lens at f/2.0, eye level, medium close-up. Warm neutral color grade, subtle film grain, realistic skin texture with natural pores. Papers have slight curl from handling. Coffee mug slightly out of focus in foreground.",
+    "Bright photograph of a business professional in their late 30s seated at a clean modern desk in a bright office, reviewing documents with genuine focus. Natural daylight from a large window floods the scene warmly. Shot on 85mm lens at f/2.0, eye level, medium close-up. Warm bright color grade, realistic skin texture. Clean organized desk. Coffee mug in foreground. Inviting and approachable.",
     "Overhead documentary photograph looking straight down at a working desk. Open laptop showing a spreadsheet, handwritten notes on a yellow legal pad with coffee ring stain from earlier in the day, reading glasses folded beside it. Two pens, one uncapped. Shot from directly above on 35mm equivalent, even soft daylight from a nearby window. Matte surfaces, realistic paper texture, subtle shadows. Color grade: clean daylight white balance.",
     "Candid medium shot of two professionals in a genuine working conversation at a modern conference table. One is leaning forward making a point, the other listening with a slight nod. Neither is looking at the camera. Authentic body language, real expressions. Shot at f/2.8 on 50mm, shallow depth of field with background office details softly blurred. Overhead diffused office lighting with a warm tone. Realistic fabric texture on clothing.",
     "Close-up documentary photograph of a person's hands typing on a laptop keyboard. Fingers mid-keystroke, natural hand position. Laptop screen glow provides cool ambient fill light from above. Dark background with one warm desk lamp creating a pool of light. Shot at f/1.8, very shallow depth of field. Keyboard keys show real wear. Slight motion blur on fingertips suggesting active typing.",
@@ -51,19 +51,19 @@ const LOCAL_PHOTO_BRIEFS = {
 // Visual Style Library - 4 curated styles built from reference analysis
 const VISUAL_STYLE_LIBRARY = {
   "Nike Energy": {
-    brief: "Single subject in an aspirational professional or urban environment with dominant negative space. Real unposed human moment of quiet determination or confident focus, never staged. Subject is a business professional or entrepreneur, well dressed, caught in a genuine moment of purpose. Wide cinematic framing with the subject occupying one third of the frame, the rest open sky, clean architecture, city street at golden hour, or modern office corridor stretching away. Natural existing light, warm golden hour or clean daylight, never flat or grey. Color palette has one strong warm anchor, deep blue sky, warm amber light, or clean white architecture. High contrast between subject and open space around them. No clutter. Composition breathes with intent. Shot on 24mm to 35mm wide lens, f/5.6 to f/8, everything sharp. Feels aspirational, confident, and forward-moving. The image should feel like the cover of a business magazine, not a film noir still.",
+    brief: "Single subject photographed in a bright aspirational environment with abundant open space. Business professional or entrepreneur in their 30s to 40s, well dressed in smart casual clothing, caught in a genuine purposeful moment, walking forward, looking up at city buildings, standing confidently at a window with daylight behind them. Warm golden hour sunlight or bright clean morning light. Color palette is warm and vibrant, blue sky, golden light, clean concrete or glass architecture. Subject occupies lower third of frame with open sky or architectural space above and around them. Wide shot on 24mm to 35mm at f/5.6, everything sharp, bright exposure. Feels energetic, aspirational, and forward-moving. Think bright Nike campaign photography, not dark or moody. The image should make you feel motivated just looking at it.",
     override: true,
   },
   "Authoritative": {
-    brief: "Dark navy or near-black background dominates the frame. If a person appears they are real, candid, slightly underexposed, never posed or smiling at camera, used as background texture not subject. Wide shot if photography is present, 24mm to 35mm, figures small in frame, environment dominant. The overall image feels like something you would stop scrolling to read, not an ad you would skip. Heavy negative space in upper portion for text placement. Monumental, serious, credible. No decorative flourishes, clean grid structure. One strong tonal accent if color is present, deep red, gold, or electric blue, used as a single element only.",
+    brief: "Bright clean editorial photograph suitable as a magazine or news article header image. Well-lit professional environment with natural daylight or clean artificial light. Subject or scene is clearly visible and inviting, never dark or moody. Upper half of the image has significant open space, clean sky, white wall, blurred light background, so text can be overlaid and read clearly. Colors are clean and professional, white, light grey, warm neutral tones. If a person appears they are confident and approachable, looking slightly off-camera, well lit from the front. The overall feeling is credible, trustworthy, and editorial, like a Forbes cover story or Harvard Business Review feature. Shot on 35mm to 50mm at f/4 to f/5.6. Bright, sharp, professional.",
     override: true,
   },
   "Blended World": {
-    brief: "Real photorealistic human subject, never model-perfect, genuine relatable expression, surprise, curiosity, focused concentration, or delight. Subject centered or slightly off-center against a single bold flat color background, no gradients, no naturalistic environments, no location context. Background color is warm and saturated, amber orange, coral, teal, or electric blue. High contrast between skin tones and background. Shot on 50mm to 85mm, medium close-up, subject sharp. Energy is upbeat, modern, and slightly playful without being juvenile. Feels like a human living inside a digital interface, two worlds coexisting naturally.",
+    brief: "Bright and vibrant photograph of a real person against a single bold solid color background, amber orange, coral red, bright teal, or electric blue. Person is in their 20s to 40s, casually dressed, genuine and relatable expression of delight, surprise, or focused curiosity, not model-posed. Holding a smartphone or looking at a device. Well lit with even bright light, no shadows or darkness. Background is a clean flat color, photography studio style. High contrast between warm skin tones and bold background color. Shot on 50mm to 85mm at f/2.8, subject sharp. Energy is upbeat, colorful, modern, and approachable. Think bright social media campaign photography with real people.",
     override: true,
   },
   "Tech-centered": {
-    brief: "Pure white, soft grey, or deep black background with zero environmental context or location detail. Single subject composition with no competing visual elements. Either an extreme close crop of a real human face or hands showing genuine skin texture, pores, natural imperfections, never retouched or model-perfect, or a device in isolation treated with portrait-level reverence. If hands appear they are mid-use, natural grip, fingers interacting with a device in a real moment not a posed product shot. Lighting is technically precise, single soft key light, minimal shadow, clean separation from background. Color palette is monochrome or uses one deliberate accent color with restraint. No decorative elements. Shot on 85mm to 100mm, medium to extreme close-up. Energy is quiet, confident, and inevitable. Feels like the future arrived without announcing itself.",
+    brief: "Pure white or very soft light grey background with zero environmental context. Single subject composition, either a person's hands holding or using a smartphone or laptop in natural grip, or a close crop of a person's face and upper body looking at a screen with genuine focus. Bright even lighting, no harsh shadows, clean Apple-style product photography aesthetic. Colors are crisp white, silver, and warm skin tones. If a person appears they are real and natural, not retouched, expression focused and engaged with technology. Shot on 85mm at f/2.0, subject sharp, background pure white. Feels clean, modern, and quietly sophisticated. Think Apple product page photography, bright and pristine.",
     override: true,
   },
 };
@@ -160,14 +160,14 @@ export default async function handler(req, res) {
   // Build the final prompt as a photography brief
   // Add caption-number-based uniqueness seed to prevent repetition
 const uniqueSeeds = [
-  "warm morning light, indoor setting",
-  "golden hour, outdoor urban environment",
-  "overcast soft light, modern workspace",
-  "late afternoon, open architectural space",
-  "cool blue ambient light, evening indoor",
-  "bright midday natural light, minimal setting",
-  "dramatic side lighting, interior space",
-  "diffused cloudy daylight, street level",
+  "bright warm morning sunlight, clean indoor setting",
+  "golden hour sunlight, outdoor urban environment with blue sky",
+  "bright natural window light, modern airy workspace",
+  "clear afternoon sunlight, open contemporary architectural space",
+  "bright even studio-quality light, clean minimal setting",
+  "crisp midday natural light, modern office environment",
+  "warm afternoon light, professional indoor space with plants",
+  "bright diffused daylight, street level city environment",
 ];
 const uniqueSeed = uniqueSeeds[(caption.number - 1) % uniqueSeeds.length];
 
@@ -200,11 +200,13 @@ Critical requirements: This must look exactly like a real photograph taken by a 
         number: caption.number,
       });
     } else if (data.data?.[0]?.b64_json) {
-      // gpt-image-1 sometimes returns base64
+      // gpt-image-1 returned base64 - convert to blob URL via data URI
+      // This is a valid fallback for display but will need WordPress upload for scheduling
       const imageUrl = `data:image/png;base64,${data.data[0].b64_json}`;
       return res.status(200).json({
         success: true,
         imageUrl,
+        isBase64: true,
         number: caption.number,
       });
     } else {
