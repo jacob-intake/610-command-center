@@ -54,16 +54,24 @@ export default async function handler(req, res) {
     const dueAt = new Date(scheduledAt).toISOString();
     const results = [];
 
+    // Validate image URLs - Buffer requires http/https URLs, not base64 data URLs
+    const isValidUrl = (url) => url && (url.startsWith("http://") || url.startsWith("https://"));
+    const safeImageUrl = isValidUrl(imageUrl) ? imageUrl : null;
+    const safeImageUrls = imageUrls && Array.isArray(imageUrls)
+      ? imageUrls.filter(isValidUrl)
+      : null;
+
     for (const channel of selectedChannels) {
       // Build assets block - supports video, single image, or carousel
+      // Only use http/https URLs - base64 data URLs are not accepted by Buffer
       let assetsBlock = "";
-      if (videoUrl) {
+      if (videoUrl && isValidUrl(videoUrl)) {
         assetsBlock = `, assets: { videos: [{ url: ${JSON.stringify(videoUrl)} }] }`;
-      } else if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) {
-        const imgList = imageUrls.map(u => `{ url: ${JSON.stringify(u)} }`).join(", ");
+      } else if (safeImageUrls && safeImageUrls.length > 0) {
+        const imgList = safeImageUrls.map(u => `{ url: ${JSON.stringify(u)} }`).join(", ");
         assetsBlock = `, assets: { images: [${imgList}] }`;
-      } else if (imageUrl) {
-        assetsBlock = `, assets: { images: [{ url: ${JSON.stringify(imageUrl)} }] }`;
+      } else if (safeImageUrl) {
+        assetsBlock = `, assets: { images: [{ url: ${JSON.stringify(safeImageUrl)} }] }`;
       }
 
       const service = (channel.service || "").toLowerCase();
@@ -104,7 +112,7 @@ export default async function handler(req, res) {
         const errMsg = postData.errors?.[0]?.message || postData.data?.createPost?.message;
 
         // Retry without image if image caused the failure
-        if (imageUrl && errMsg) {
+        if (safeImageUrl && errMsg) {
           const mutationNoImg = `
             mutation CreatePost {
               createPost(input: {
@@ -131,7 +139,7 @@ export default async function handler(req, res) {
           results.push({ channel: channel.name, success: false, error: errMsg });
         }
       } else if (postData.data?.createPost?.post) {
-        results.push({ channel: channel.name, success: true, hasImage: !!imageUrl, postId: postData.data.createPost.post.id });
+        results.push({ channel: channel.name, success: true, hasImage: !!(safeImageUrl || (safeImageUrls && safeImageUrls.length > 0)), postId: postData.data.createPost.post.id });
       } else {
         // Log full response for debugging
         console.error(`Unexpected response for ${channel.name}:`, JSON.stringify(postData));
