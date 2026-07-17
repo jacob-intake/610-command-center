@@ -1,0 +1,23 @@
+# Secrets — never commit credentials
+.env
+.env.*
+!.env.example
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+
+# Local-only reference media (face photos, product shots, style boards)
+references/
+!references/README.md
+
+# Generated creative output
+outputs/
+output/
+
+# Misc
+.DS_Store
+*.log
+.claude/settings.local.json
+.claude/worktrees/
